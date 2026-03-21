@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>📋 Điểm danh — EduCheck</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
+:root{--bg:#f5f6fa;--card:#fff;--border:#e2e5f1;--text:#1a1d2e;--dim:#6e7490;--pri:#4f46e5;--pri-light:#eef2ff;--green:#10b981;--green-light:#ecfdf5;--red:#ef4444;--red-light:#fef2f2;--orange:#f59e0b;--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px}
+.wrapper{max-width:420px;width:100%}
+.header{text-align:center;margin-bottom:24px}
+.header h1{font-size:1.4rem;font-weight:800;margin-bottom:4px}.header h1 span{color:var(--pri)}
+.header .sub{font-size:.82rem;color:var(--dim)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.03)}
+label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:4px}
+input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:10px;font-family:inherit;font-size:1rem;outline:none;margin-bottom:12px;background:#fff}
+input:focus{border-color:var(--pri)}
+.btn{width:100%;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{opacity:.9}
+.btn-green{background:var(--green);color:#fff}
+.btn-outline{background:none;border:2px solid var(--border);color:var(--dim)}.btn-outline:hover{border-color:var(--pri);color:var(--pri)}
+/* Steps */
+.step{display:none}.step.active{display:block}
+/* Scanner */
+#scanner-video{width:100%;border-radius:12px;background:#000;aspect-ratio:1;object-fit:cover}
+.scan-overlay{position:relative}
+.scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;border:3px solid var(--pri);border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,.3)}
+/* Result */
+.result{text-align:center;padding:30px}
+.result .icon{font-size:4rem;margin-bottom:16px}
+.result h2{font-size:1.2rem;font-weight:700;margin-bottom:8px}
+.result .info{font-size:.85rem;color:var(--dim);line-height:1.6}
+.status-msg{text-align:center;padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;margin-bottom:12px}
+.status-msg.error{background:var(--red-light);color:var(--red)}.status-msg.warn{background:#fffbeb;color:var(--orange)}
+.hidden{display:none!important}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 24px;border-radius:50px;font-size:.85rem;font-weight:600;z-index:999}
+/* Manual code entry */
+.code-input{display:flex;gap:8px;justify-content:center;margin:20px 0}
+.code-input input{width:50px;height:60px;text-align:center;font-size:1.5rem;font-weight:800;font-family:'JetBrains Mono',monospace;border:2px solid var(--border);border-radius:10px;text-transform:uppercase;padding:0}
+.code-input input:focus{border-color:var(--pri);background:var(--pri-light)}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>📋 <span>EduCheck</span> Điểm danh</h1>
+    <div class="sub">Nhập thông tin → Quét QR hoặc nhập mã</div>
+  </div>
+
+  <!-- Firebase setup -->
+  <div class="card hidden" id="fb-setup" style="border:2px solid #f59e0b;background:#fffbeb">
+    <h3 style="font-size:.9rem;font-weight:700;margin-bottom:8px">⚠️ Chưa kết nối hệ thống</h3>
+    <p style="font-size:.82rem;color:#6e7490;margin-bottom:12px">Dán Firebase Config JSON từ giảng viên hoặc sử dụng link có sẵn cấu hình.</p>
+    <textarea id="fb-cfg-input" rows="4" placeholder='{"apiKey":"...","databaseURL":"..."}' style="width:100%;padding:10px;border:1px solid #e2e5f1;border-radius:8px;font-size:.82rem;font-family:monospace;margin-bottom:10px"></textarea>
+    <button class="btn btn-pri" onclick="saveFbSetup()" style="font-size:.85rem">💾 Kết nối</button>
+  </div>
+
+  <!-- STEP 1: Enter student info -->
+  <div class="step active" id="step1">
+    <div class="card">
+      <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 1: Nhập thông tin</h3>
+      <label>Mã sinh viên</label>
+      <input type="text" id="sv-code" placeholder="VD: 21110001" inputmode="numeric">
+      <label>Họ tên đầy đủ</label>
+      <input type="text" id="sv-name" placeholder="Nguyễn Văn A">
+      <div class="status-msg error hidden" id="sv-error"></div>
+      <button class="btn btn-pri" onclick="validateStudent()">Tiếp tục →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Scan QR or enter code -->
+  <div class="step" id="step2">
+    <div class="card">
+      <h3 style="font-size:.95rem;font-weight:700;margin-bottom:4px">Bước 2: Điểm danh</h3>
+      <p style="font-size:.78rem;color:var(--dim);margin-bottom:16px">Quét QR trên màn hình giảng viên hoặc nhập mã 6 ký tự</p>
+      <div id="sv-info-bar" style="padding:10px 14px;background:var(--pri-light);border-radius:10px;margin-bottom:16px;font-size:.82rem">
+        <strong id="sv-display"></strong>
+      </div>
+
+      <!-- Camera scanner -->
+      <div class="scan-overlay" id="scanner-container">
+        <video id="scanner-video" autoplay playsinline></video>
+      </div>
+
+      <div style="text-align:center;margin:16px 0;color:var(--dim);font-size:.82rem">— hoặc nhập mã thủ công —</div>
+
+      <!-- Manual code -->
+      <div class="code-input" id="code-inputs">
+        <input type="text" maxlength="1" oninput="codeNext(this,0)" onkeydown="codePrev(event,0)">
+        <input type="text" maxlength="1" oninput="codeNext(this,1)" onkeydown="codePrev(event,1)">
+        <input type="text" maxlength="1" oninput="codeNext(this,2)" onkeydown="codePrev(event,2)">
+        <input type="text" maxlength="1" oninput="codeNext(this,3)" onkeydown="codePrev(event,3)">
+        <input type="text" maxlength="1" oninput="codeNext(this,4)" onkeydown="codePrev(event,4)">
+        <input type="text" maxlength="1" oninput="codeNext(this,5)" onkeydown="codePrev(event,5)">
+      </div>
+      <button class="btn btn-green" onclick="submitManualCode()">✅ Điểm danh</button>
+
+      <div class="status-msg error hidden" id="att-error" style="margin-top:12px"></div>
+      <button class="btn btn-outline" onclick="goStep(1)" style="margin-top:10px">← Quay lại</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Result -->
+  <div class="step" id="step3">
+    <div class="card">
+      <div class="result" id="result-content"></div>
+      <button class="btn btn-outline" onclick="resetAll()">Điểm danh cho người khác</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/@nicolo-ribaudo/qr-reader@0.2.0/dist/index.min.js"></script>
+
+<script>
+// Firebase init from URL params or localStorage
+let db=null,studentCode='',studentName='';
+
+function initFB(){
+  // Try URL params first
+  const params=new URLSearchParams(window.location.search);
+  const urlCfg=params.get('fb');
+  if(urlCfg){try{const c=JSON.parse(atob(urlCfg));localStorage.setItem('educheck_fb',JSON.stringify(c))}catch{}}
+
+  const saved=localStorage.getItem('educheck_fb');
+  if(!saved){showFbSetup();return}
+  try{const c=JSON.parse(saved);firebase.initializeApp(c);db=firebase.database();
+    document.getElementById('fb-setup').classList.add('hidden');
+  }catch(e){showFbSetup()}
+}
+
+function showFbSetup(){document.getElementById('fb-setup').classList.remove('hidden')}
+function saveFbSetup(){
+  const raw=document.getElementById('fb-cfg-input').value.trim();
+  try{const c=JSON.parse(raw);if(!c.apiKey){alert('Thiếu apiKey');return}
+    localStorage.setItem('educheck_fb',JSON.stringify(c));location.reload();
+  }catch{alert('JSON không hợp lệ')}
+}
+
+// Steps
+function goStep(n){document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));document.getElementById('step'+n).classList.add('active')}
+
+// Step 1: Validate student
+async function validateStudent(){
+  studentCode=document.getElementById('sv-code').value.trim();
+  studentName=document.getElementById('sv-name').value.trim();
+  const err=document.getElementById('sv-error');
+  if(!studentCode||!studentName){err.textContent='⚠️ Nhập đầy đủ mã SV và họ tên';err.classList.remove('hidden');return}
+
+  // Validate against Firebase
+  if(!db){err.textContent='⚠️ Chưa kết nối Firebase';err.classList.remove('hidden');return}
+  const snap=await db.ref('educheck/students').once('value');
+  const students=snap.val()?Object.values(snap.val()):[];
+  // Also check from data
+  const found=students.find(s=>s.code===studentCode);
+  if(!found){err.textContent='⚠️ Mã SV không tồn tại trong hệ thống';err.classList.remove('hidden');return}
+  if(found.name.toLowerCase().trim()!==studentName.toLowerCase().trim()){err.textContent='⚠️ Tên không khớp với mã SV. Kiểm tra lại.';err.classList.remove('hidden');return}
+
+  err.classList.add('hidden');
+  document.getElementById('sv-display').textContent=`✅ ${found.name} (${found.code})`;
+  goStep(2);
+  startScanner();
+}
+
+// Step 2: QR Scanner
+let scannerStream=null;
+async function startScanner(){
+  try{
+    const video=document.getElementById('scanner-video');
+    scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject=scannerStream;
+    // Start scanning
+    scanQR(video);
+  }catch(e){console.log('Camera error:',e)}
+}
+
+async function scanQR(video){
+  if(!video.srcObject)return;
+  try{
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    const check=()=>{
+      if(video.readyState!==video.HAVE_ENOUGH_DATA){requestAnimationFrame(check);return}
+      canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+      ctx.drawImage(video,0,0);
+      try{
+        const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+        // Simple QR detection via jsQR if available
+        if(typeof jsQR!=='undefined'){
+          const code=jsQR(imageData.data,imageData.width,imageData.height);
+          if(code){processQR(code.data);return}
+        }
+      }catch(e){}
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }catch(e){console.log('Scan error',e)}
+}
+
+function stopScanner(){if(scannerStream){scannerStream.getTracks().forEach(t=>t.stop());scannerStream=null}}
+
+async function processQR(data){
+  try{
+    const parsed=JSON.parse(data);
+    if(parsed.s&&parsed.c){await submitAttendance(parsed.s,parsed.c)}
+  }catch{/* Not a valid QR */}
+}
+
+// Manual code input navigation
+function codeNext(el,idx){
+  el.value=el.value.toUpperCase();
+  if(el.value&&idx<5)document.querySelectorAll('.code-input input')[idx+1].focus();
+}
+function codePrev(e,idx){
+  if(e.key==='Backspace'&&!e.target.value&&idx>0)document.querySelectorAll('.code-input input')[idx-1].focus();
+}
+
+async function submitManualCode(){
+  const inputs=document.querySelectorAll('.code-input input');
+  const code=Array.from(inputs).map(i=>i.value).join('').toUpperCase();
+  if(code.length<6){showAttError('⚠️ Nhập đủ 6 ký tự');return}
+
+  // Check active session
+  if(!db){showAttError('⚠️ Chưa kết nối Firebase');return}
+  const snap=await db.ref('activeSession').once('value');
+  const session=snap.val();
+  if(!session){showAttError('⚠️ Hiện không có buổi điểm danh nào đang mở');return}
+  if(Date.now()>session.expires){showAttError('⚠️ Mã đã hết hạn. Chờ mã mới trên màn hình GV');return}
+  if(session.code!==code){showAttError('⚠️ Sai mã. Kiểm tra lại trên màn hình GV');return}
+
+  await submitAttendance(session.sessionId,code);
+}
+
+async function submitAttendance(sessionId,code){
+  const err=document.getElementById('att-error');
+  // Verify code is currently active
+  const snap=await db.ref('activeSession').once('value');
+  const session=snap.val();
+  if(!session||session.sessionId!==sessionId){showAttError('⚠️ Phiên điểm danh đã đóng');return}
+  if(session.code!==code){showAttError('⚠️ Mã đã đổi. Quét lại QR mới');return}
+
+  // Check if already checked in
+  const existing=await db.ref('attendance/'+sessionId+'/'+studentCode).once('value');
+  if(existing.val()){
+    stopScanner();goStep(3);
+    document.getElementById('result-content').innerHTML=`<div class="icon">ℹ️</div><h2>Đã điểm danh rồi!</h2><div class="info">Bạn đã điểm danh lúc ${new Date(existing.val().time).toLocaleTimeString('vi-VN')}</div>`;
+    return;
+  }
+
+  // Submit
+  await db.ref('attendance/'+sessionId+'/'+studentCode).set({
+    code:studentCode,name:studentName,time:Date.now(),qrCode:code
+  });
+
+  stopScanner();goStep(3);
+  document.getElementById('result-content').innerHTML=`<div class="icon">✅</div><h2>Điểm danh thành công!</h2><div class="info">${studentName} (${studentCode})<br>${new Date().toLocaleString('vi-VN')}</div>`;
+}
+
+function showAttError(msg){const el=document.getElementById('att-error');el.textContent=msg;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),4000)}
+
+function resetAll(){
+  stopScanner();goStep(1);
+  document.getElementById('sv-code').value='';document.getElementById('sv-name').value='';
+  document.querySelectorAll('.code-input input').forEach(i=>i.value='');
+  studentCode='';studentName='';
+}
+
+// Init
+initFB();
+</script>
+<!-- jsQR for QR decoding -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</body>
+</html>
