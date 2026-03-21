@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🔍 Tra cứu — EduCheck</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
+:root{--bg:#f5f6fa;--card:#fff;--border:#e2e5f1;--text:#1a1d2e;--dim:#6e7490;--pri:#4f46e5;--pri-light:#eef2ff;--green:#10b981;--green-light:#ecfdf5;--red:#ef4444;--red-light:#fef2f2;--orange:#f59e0b;--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px}
+.wrapper{max-width:480px;width:100%}
+.header{text-align:center;margin-bottom:24px}.header h1{font-size:1.4rem;font-weight:800;margin-bottom:4px}.header h1 span{color:var(--pri)}.header .sub{font-size:.82rem;color:var(--dim)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.03)}
+label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:4px}
+input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:10px;font-family:inherit;font-size:1rem;outline:none;margin-bottom:12px;background:#fff}input:focus{border-color:var(--pri)}
+.btn{width:100%;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-pri{background:var(--pri);color:#fff}.btn-outline{background:none;border:2px solid var(--border);color:var(--dim)}
+.msg{padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;margin-bottom:12px;text-align:center}
+.msg.err{background:var(--red-light);color:var(--red)}.msg.warn{background:#fffbeb;color:var(--orange)}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-green{background:var(--green-light);color:var(--green)}.badge-red{background:var(--red-light);color:var(--red)}
+.info-box{padding:14px;background:var(--pri-light);border-radius:10px;margin-bottom:16px;font-size:.85rem;line-height:1.7}
+.info-box strong{color:var(--pri)}
+.section{margin-top:20px}
+.section h3{font-size:.9rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.att-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:.85rem}
+.stat-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+.stat-box{padding:14px;background:var(--bg);border-radius:12px;text-align:center}
+.stat-box .v{font-size:1.3rem;font-weight:800}.stat-box .l{font-size:.68rem;color:var(--dim);margin-top:3px}
+.hidden{display:none!important}
+/* Firebase setup */
+.fb-setup{border:2px solid var(--orange);background:#fffbeb;padding:20px;border-radius:var(--radius);margin-bottom:16px}
+.fb-setup h3{font-size:.9rem;font-weight:700;margin-bottom:8px}
+.fb-setup p{font-size:.82rem;color:var(--dim);margin-bottom:12px}
+.fb-setup textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;margin-bottom:10px;min-height:80px}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header"><h1>🔍 <span>EduCheck</span> Tra cứu</h1><div class="sub">Xem trạng thái điểm danh & nộp bài</div></div>
+
+  <!-- Firebase setup -->
+  <div class="fb-setup hidden" id="fb-setup">
+    <h3>⚠️ Chưa kết nối hệ thống</h3>
+    <p>Dán Firebase Config JSON từ giảng viên hoặc sử dụng link có sẵn cấu hình.</p>
+    <textarea id="fb-cfg-input" placeholder='{"apiKey":"...","databaseURL":"..."}'></textarea>
+    <button class="btn btn-pri" onclick="saveFbSetup()" style="font-size:.85rem">💾 Kết nối</button>
+  </div>
+
+  <!-- Search form -->
+  <div class="card" id="search-card">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Nhập thông tin để tra cứu</h3>
+    <label>Mã sinh viên</label>
+    <input type="text" id="sv-code" placeholder="VD: 21110001" inputmode="numeric">
+    <label>Họ tên đầy đủ</label>
+    <input type="text" id="sv-name" placeholder="Nguyễn Văn A">
+    <div class="msg err hidden" id="err-msg"></div>
+    <button class="btn btn-pri" onclick="doSearch()">🔍 Tra cứu</button>
+  </div>
+
+  <!-- Result -->
+  <div class="hidden" id="result">
+    <div class="info-box" id="sv-info"></div>
+
+    <!-- Stats summary -->
+    <div class="stat-row" id="stat-row"></div>
+
+    <!-- Thesis status -->
+    <div class="section">
+      <h3>📄 Khóa luận</h3>
+      <div class="card" id="thesis-status"></div>
+    </div>
+
+    <!-- Attendance history -->
+    <div class="section">
+      <h3>📋 Lịch sử điểm danh</h3>
+      <div class="card" id="att-history"></div>
+    </div>
+
+    <button class="btn btn-outline" onclick="resetSearch()" style="margin-top:12px">← Tra cứu lại</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+let db=null;
+
+function initFB(){
+  const params=new URLSearchParams(window.location.search);
+  const urlCfg=params.get('fb');
+  if(urlCfg){try{const c=JSON.parse(atob(urlCfg));localStorage.setItem('educheck_fb',JSON.stringify(c))}catch{}}
+  const saved=localStorage.getItem('educheck_fb');
+  if(!saved){document.getElementById('fb-setup').classList.remove('hidden');return}
+  try{const c=JSON.parse(saved);firebase.initializeApp(c);db=firebase.database();
+    document.getElementById('fb-setup').classList.add('hidden');
+  }catch{document.getElementById('fb-setup').classList.remove('hidden')}
+}
+function saveFbSetup(){
+  const raw=document.getElementById('fb-cfg-input').value.trim();
+  try{const c=JSON.parse(raw);if(!c.apiKey){alert('Thiếu apiKey');return}
+    localStorage.setItem('educheck_fb',JSON.stringify(c));location.reload();
+  }catch{alert('JSON không hợp lệ')}
+}
+
+function fmD(ts){if(!ts)return'';const d=new Date(ts);return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+async function doSearch(){
+  const code=document.getElementById('sv-code').value.trim();
+  const name=document.getElementById('sv-name').value.trim();
+  const err=document.getElementById('err-msg');
+
+  if(!code||!name){err.textContent='⚠️ Nhập đầy đủ mã SV và họ tên';err.classList.remove('hidden');return}
+  if(!db){err.textContent='⚠️ Chưa kết nối Firebase';err.classList.remove('hidden');return}
+
+  err.classList.add('hidden');
+
+  // Load data
+  const [studentsSnap,sessionsSnap,attSnap,thesisSnap]=await Promise.all([
+    db.ref('educheck/students').once('value'),
+    db.ref('educheck/sessions').once('value'),
+    db.ref('attendance').once('value'),
+    db.ref('thesis').once('value')
+  ]);
+
+  const students=studentsSnap.val()?Object.values(studentsSnap.val()):[];
+  const sessions=sessionsSnap.val()?Object.values(sessionsSnap.val()):[];
+  const allAtt=attSnap.val()||{};
+  const allThesis=thesisSnap.val()?Object.values(thesisSnap.val()):[];
+
+  // Validate
+  const found=students.find(s=>s.code===code);
+  if(!found){err.textContent='❌ Mã SV không tồn tại';err.classList.remove('hidden');return}
+  if(found.name.toLowerCase().trim()!==name.toLowerCase().trim()){err.textContent='❌ Tên không khớp với mã SV';err.classList.remove('hidden');return}
+
+  // Render results
+  document.getElementById('search-card').classList.add('hidden');
+  document.getElementById('result').classList.remove('hidden');
+
+  // Student info
+  document.getElementById('sv-info').innerHTML=`
+    <div><strong>Mã SV:</strong> ${esc(found.code)}</div>
+    <div><strong>Họ tên:</strong> ${esc(found.name)}</div>
+    ${found.batch?'<div><strong>Khóa:</strong> '+esc(found.batch)+'</div>':''}
+    ${found.topic?'<div><strong>Đề tài:</strong> '+esc(found.topic)+'</div>':''}`;
+
+  // Attendance stats
+  const svSessions=sessions.filter(s=>s.courseId===found.courseId);
+  let present=0;
+  svSessions.forEach(s=>{const a=allAtt[s.id]||{};if(a[found.code])present++});
+  const attPct=svSessions.length>0?Math.round(present/svSessions.length*100):0;
+
+  // Thesis
+  const thesis=allThesis.find(t=>t.code===found.code);
+
+  document.getElementById('stat-row').innerHTML=`
+    <div class="stat-box"><div class="v" style="color:${attPct>=80?'var(--green)':attPct>=60?'var(--orange)':'var(--red)'}">${attPct}%</div><div class="l">Tỷ lệ có mặt</div></div>
+    <div class="stat-box"><div class="v" style="color:var(--pri)">${present}/${svSessions.length}</div><div class="l">Buổi tham gia</div></div>
+    <div class="stat-box"><div class="v" style="color:${thesis?'var(--green)':'var(--red)'}">${thesis?'✅':'❌'}</div><div class="l">Khóa luận</div></div>`;
+
+  // Thesis detail
+  if(thesis){
+    document.getElementById('thesis-status').innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="badge badge-green">✅ Đã nộp</span></div>
+      <div style="font-size:.85rem;line-height:1.7;color:var(--dim)">
+        <div><strong style="color:var(--text)">File:</strong> ${esc(thesis.fileName||'')}</div>
+        <div><strong style="color:var(--text)">Thời gian nộp:</strong> ${fmD(thesis.time)}</div>
+        <div><strong style="color:var(--text)">Đề tài:</strong> ${esc(thesis.topic||'')}</div>
+      </div>`;
+  } else if(found.topic){
+    document.getElementById('thesis-status').innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="badge badge-red">❌ Chưa nộp</span></div>
+      <p style="font-size:.85rem;color:var(--dim)">Đề tài: <strong style="color:var(--text)">${esc(found.topic)}</strong></p>
+      <p style="font-size:.82rem;color:var(--orange);margin-top:6px">⚠️ Vui lòng nộp bài qua trang nộp bài từ giảng viên.</p>`;
+  } else {
+    document.getElementById('thesis-status').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa được phân đề tài khóa luận.</p>';
+  }
+
+  // Attendance history
+  if(!svSessions.length){
+    document.getElementById('att-history').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa có buổi điểm danh nào.</p>';
+  } else {
+    document.getElementById('att-history').innerHTML=svSessions.map((s,i)=>{
+      const a=allAtt[s.id]||{};const here=!!a[found.code];
+      const time=a[found.code]?fmD(a[found.code].time):'';
+      return `<div class="att-row">
+        <div><strong>Buổi ${i+1}</strong> <span style="color:var(--dim);font-size:.78rem">— ${fmD(s.startTime)}</span></div>
+        <div>${here?'<span class="badge badge-green">✅ Có mặt</span>':'<span class="badge badge-red">❌ Vắng</span>'}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function resetSearch(){
+  document.getElementById('search-card').classList.remove('hidden');
+  document.getElementById('result').classList.add('hidden');
+  document.getElementById('sv-code').value='';
+  document.getElementById('sv-name').value='';
+}
+
+initFB();
+</script>
+</body>
+</html>
