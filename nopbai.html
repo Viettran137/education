@@ -101,18 +101,16 @@ input:focus,select:focus{border-color:var(--pri)}
 <script>
 let db=null,storage=null,selectedFile=null;
 let svData={code:'',name:'',batch:'',topic:'',courseId:''};
+const DEFAULT_FB={"apiKey":"AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE","authDomain":"education-df9a0.firebaseapp.com","databaseURL":"https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app","projectId":"education-df9a0","storageBucket":"education-df9a0.firebasestorage.app","messagingSenderId":"770840279264","appId":"1:770840279264:web:fba64d37c635edb3967885"};
 
 function initFB(){
-  // Try URL params first (from GV shared link)
   const params=new URLSearchParams(window.location.search);
   const urlCfg=params.get('fb');
   if(urlCfg){try{const c=JSON.parse(atob(urlCfg));localStorage.setItem('educheck_fb',JSON.stringify(c))}catch{}}
-
-  const saved=localStorage.getItem('educheck_fb');
-  if(!saved){showFbSetup();return}
-  try{const c=JSON.parse(saved);firebase.initializeApp(c);db=firebase.database();storage=firebase.storage();
-    document.getElementById('fb-setup').classList.add('hidden');
-  }catch(e){showFbSetup()}
+  let cfg=null;const saved=localStorage.getItem('educheck_fb');
+  if(saved){try{cfg=JSON.parse(saved)}catch{}}
+  if(!cfg)cfg=DEFAULT_FB;
+  try{firebase.initializeApp(cfg);db=firebase.database();storage=firebase.storage();document.getElementById('fb-setup').classList.add('hidden')}catch(e){showFbSetup()}
 }
 
 function showFbSetup(){document.getElementById('fb-setup').classList.remove('hidden')}
