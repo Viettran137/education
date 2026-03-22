@@ -119,8 +119,8 @@ async function doSearch(){
 
   // Load data
   const [studentsSnap,sessionsSnap,attSnap,thesisSnap]=await Promise.all([
-    db.ref('educheck/students').once('value'),
-    db.ref('educheck/sessions').once('value'),
+    db.ref('educheck2/students').once('value'),
+    db.ref('educheck2/sessions').once('value'),
     db.ref('attendance').once('value'),
     db.ref('thesis').once('value')
   ]);
@@ -139,57 +139,73 @@ async function doSearch(){
   document.getElementById('search-card').classList.add('hidden');
   document.getElementById('result').classList.remove('hidden');
 
-  // Student info
+  // Also load groups
+  const grpSnap=await db.ref('educheck2/groups').once('value');
+  const groups=grpSnap.val()?Object.values(grpSnap.val()):[];
+  const myGroups=groups.filter(g=>(g.memberCodes||[]).includes(found.code));
+
+  // Load courses for names
+  const courseSnap=await db.ref('educheck2/courses').once('value');
+  const courses=courseSnap.val()?Object.values(courseSnap.val()):[];
+  const cName=id=>{const c=courses.find(c=>c.id===id);return c?c.name:'?'};
+
   document.getElementById('sv-info').innerHTML=`
     <div><strong>Mã SV:</strong> ${esc(found.code)}</div>
     <div><strong>Họ tên:</strong> ${esc(found.name)}</div>
     ${found.batch?'<div><strong>Khóa:</strong> '+esc(found.batch)+'</div>':''}
-    ${found.topic?'<div><strong>Đề tài:</strong> '+esc(found.topic)+'</div>':''}`;
+    <div><strong>Môn học:</strong> ${(found.courseIds||[]).map(id=>esc(cName(id))).join(', ')||'—'}</div>
+    <div><strong>Nhóm:</strong> ${myGroups.map(g=>esc(g.name)+' ('+esc(g.topic||'')+')').join('; ')||'—'}</div>`;
 
-  // Attendance stats
-  const svSessions=sessions.filter(s=>s.courseId===found.courseId);
+  // Attendance stats — across all courses
+  const svSessions=sessions.filter(s=>(found.courseIds||[]).includes(s.courseId));
   let present=0;
   svSessions.forEach(s=>{const a=allAtt[s.id]||{};if(a[found.code])present++});
   const attPct=svSessions.length>0?Math.round(present/svSessions.length*100):0;
 
-  // Thesis
-  const thesis=allThesis.find(t=>t.code===found.code);
+  // Thesis — group based
+  const myThesis=allThesis.filter(t=>myGroups.some(g=>g.id===t.groupId));
 
   document.getElementById('stat-row').innerHTML=`
     <div class="stat-box"><div class="v" style="color:${attPct>=80?'var(--green)':attPct>=60?'var(--orange)':'var(--red)'}">${attPct}%</div><div class="l">Tỷ lệ có mặt</div></div>
     <div class="stat-box"><div class="v" style="color:var(--pri)">${present}/${svSessions.length}</div><div class="l">Buổi tham gia</div></div>
-    <div class="stat-box"><div class="v" style="color:${thesis?'var(--green)':'var(--red)'}">${thesis?'✅':'❌'}</div><div class="l">Khóa luận</div></div>`;
+    <div class="stat-box"><div class="v" style="color:${myThesis.length?'var(--green)':'var(--red)'}">${myThesis.length?'✅':'❌'}</div><div class="l">Khóa luận</div></div>`;
 
   // Thesis detail
-  if(thesis){
-    document.getElementById('thesis-status').innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="badge badge-green">✅ Đã nộp</span></div>
-      <div style="font-size:.85rem;line-height:1.7;color:var(--dim)">
-        <div><strong style="color:var(--text)">File:</strong> ${esc(thesis.fileName||'')}</div>
-        <div><strong style="color:var(--text)">Thời gian nộp:</strong> ${fmD(thesis.time)}</div>
-        <div><strong style="color:var(--text)">Đề tài:</strong> ${esc(thesis.topic||'')}</div>
-      </div>`;
-  } else if(found.topic){
-    document.getElementById('thesis-status').innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span class="badge badge-red">❌ Chưa nộp</span></div>
-      <p style="font-size:.85rem;color:var(--dim)">Đề tài: <strong style="color:var(--text)">${esc(found.topic)}</strong></p>
-      <p style="font-size:.82rem;color:var(--orange);margin-top:6px">⚠️ Vui lòng nộp bài qua trang nộp bài từ giảng viên.</p>`;
+  if(myThesis.length){
+    document.getElementById('thesis-status').innerHTML=myThesis.map(t=>`
+      <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <span class="badge badge-green">✅ Đã nộp</span>
+        <div style="font-size:.85rem;line-height:1.7;color:var(--dim);margin-top:6px">
+          <div><strong style="color:var(--text)">Nhóm:</strong> ${esc(t.groupName||'')}</div>
+          <div><strong style="color:var(--text)">Đề tài:</strong> ${esc(t.topic||'')}</div>
+          <div><strong style="color:var(--text)">File:</strong> ${esc(t.fileName||'')}</div>
+          <div><strong style="color:var(--text)">Người nộp:</strong> ${esc(t.name||'')} (${esc(t.code||'')})</div>
+          <div><strong style="color:var(--text)">Thời gian:</strong> ${fmD(t.time)}</div>
+        </div>
+      </div>`).join('');
+  } else if(myGroups.length){
+    document.getElementById('thesis-status').innerHTML=myGroups.map(g=>`
+      <div style="margin-bottom:8px"><span class="badge badge-red">❌ Chưa nộp</span> <strong>${esc(g.name)}</strong> — ${esc(g.topic||'Chưa có đề tài')}</div>`).join('')+
+      '<p style="font-size:.82rem;color:var(--orange);margin-top:6px">⚠️ Nộp bài qua trang nộp bài từ giảng viên.</p>';
   } else {
-    document.getElementById('thesis-status').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa được phân đề tài khóa luận.</p>';
+    document.getElementById('thesis-status').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa thuộc nhóm khóa luận nào.</p>';
   }
 
-  // Attendance history
+  // Attendance history - grouped by course
   if(!svSessions.length){
-    document.getElementById('att-history').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa có buổi điểm danh nào.</p>';
+    document.getElementById('att-history').innerHTML='<p style="font-size:.85rem;color:var(--dim)">Chưa có buổi điểm danh.</p>';
   } else {
-    document.getElementById('att-history').innerHTML=svSessions.map((s,i)=>{
-      const a=allAtt[s.id]||{};const here=!!a[found.code];
-      const time=a[found.code]?fmD(a[found.code].time):'';
-      return `<div class="att-row">
-        <div><strong>Buổi ${i+1}</strong> <span style="color:var(--dim);font-size:.78rem">— ${fmD(s.startTime)}</span></div>
-        <div>${here?'<span class="badge badge-green">✅ Có mặt</span>':'<span class="badge badge-red">❌ Vắng</span>'}</div>
-      </div>`;
-    }).join('');
+    let attHTML='';
+    (found.courseIds||[]).forEach(cid=>{
+      const courseSessions=svSessions.filter(s=>s.courseId===cid);
+      if(!courseSessions.length)return;
+      attHTML+=`<div style="font-weight:700;font-size:.85rem;margin:12px 0 6px">📚 ${esc(cName(cid))}</div>`;
+      attHTML+=courseSessions.map((s,i)=>{
+        const a=allAtt[s.id]||{};const here=!!a[found.code];
+        return `<div class="att-row"><div><strong>Buổi ${i+1}</strong> <span style="color:var(--dim);font-size:.78rem">— ${fmD(s.startTime)}</span></div><div>${here?'<span class="badge badge-green">✅ Có mặt</span>':'<span class="badge badge-red">❌ Vắng</span>'}</div></div>`;
+      }).join('');
+    });
+    document.getElementById('att-history').innerHTML=attHTML;
   }
 }
 
