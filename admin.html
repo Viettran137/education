@@ -290,8 +290,9 @@ tr:hover td{background:var(--pri-light)}
 
 <script>
 // ===== CONFIG =====
-const SK='educheck',DP='8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
-function dD(){return{pw:DP,fbConfig:null,courses:[],students:[],sessions:[],attendance:{},thesis:[]}}
+const SK='educheck',DP='037a12dcc822bcef538f37c8911dc51b58f56d723e0b5f26263c40af6de6249b';
+const DEFAULT_FB={"apiKey":"AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE","authDomain":"education-df9a0.firebaseapp.com","databaseURL":"https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app","projectId":"education-df9a0","storageBucket":"education-df9a0.firebasestorage.app","messagingSenderId":"770840279264","appId":"1:770840279264:web:fba64d37c635edb3967885"};
+function dD(){return{pw:DP,fbConfig:DEFAULT_FB,courses:[],students:[],sessions:[],attendance:{},thesis:[]}}
 function ld(){try{const r=localStorage.getItem(SK);return r?JSON.parse(r):dD()}catch{return dD()}}
 let D=ld();
 function sv(){localStorage.setItem(SK,JSON.stringify(D));syncCloud()}
@@ -431,31 +432,51 @@ function generateCode(){return Math.random().toString(36).slice(2,8).toUpperCase
 
 function startAttendance(){
   const courseId=$('att-course').value;if(!courseId){toast('⚠️ Chọn môn học');return}
+  // Check if students exist for this course
+  const svCount=D.students.filter(s=>s.courseId===courseId).length;
+  if(!svCount){toast('⚠️ Chưa có sinh viên trong môn này');return}
   const sessionId=uid();attSessionId=sessionId;
+  if(!D.attendance)D.attendance={};
   D.sessions.push({id:sessionId,courseId,startTime:Date.now(),endTime:null,codes:[]});
-  if(!D.attendance[sessionId])D.attendance[sessionId]={};
+  D.attendance[sessionId]={};
   sv();
-  // Start QR rotation
-  rotateQR(sessionId);
+  // UI first — show panel before rendering QR
+  $('qr-panel').classList.remove('hidden');$('att-start-btn').classList.add('hidden');$('att-stop-btn').classList.remove('hidden');
+  $('att-status').textContent='🔴 Đang điểm danh...';
+  $('live-badge').className='live-badge on';$('live-badge').textContent='🔴 LIVE: Đang điểm danh';
+  // Start QR rotation (with small delay to ensure canvas is visible)
+  setTimeout(()=>rotateQR(sessionId),100);
   attInterval=setInterval(()=>{qrCountdown--;$('qr-countdown').textContent=qrCountdown;if(qrCountdown<=0)rotateQR(sessionId)},1000);
   // Listen for attendance in Firebase
   if(fbDb){fbDb.ref('attendance/'+sessionId).on('value',snap=>{
     const data=snap.val()||{};D.attendance[sessionId]=data;localStorage.setItem(SK,JSON.stringify(D));
     $('qr-count').textContent=Object.keys(data).length+' SV đã điểm danh';
   })}
-  // UI
-  $('qr-panel').classList.remove('hidden');$('att-start-btn').classList.add('hidden');$('att-stop-btn').classList.remove('hidden');
-  $('att-status').textContent='🔴 Đang điểm danh...';
-  $('live-badge').className='live-badge on';$('live-badge').textContent='🔴 LIVE: Đang điểm danh';
 }
 
 function rotateQR(sessionId){
   currentQrCode=generateCode();qrCountdown=30;
   const session=D.sessions.find(s=>s.id===sessionId);
   if(session){session.codes.push({code:currentQrCode,time:Date.now()});sv()}
-  // Generate QR with session+code
+  // Generate QR data
   const qrData=JSON.stringify({s:sessionId,c:currentQrCode,t:Date.now()});
-  QRCode.toCanvas($('qr-canvas'),qrData,{width:240,margin:2,color:{dark:'#4f46e5',light:'#ffffff'}});
+  // Render QR to canvas
+  try{
+    const canvas=$('qr-canvas');
+    if(typeof QRCode!=='undefined'&&QRCode.toCanvas){
+      QRCode.toCanvas(canvas,qrData,{width:240,margin:2,color:{dark:'#4f46e5',light:'#ffffff'}},function(err){
+        if(err)console.error('QR render error:',err);
+      });
+    } else {
+      // Fallback: show code text prominently
+      console.warn('QRCode library not loaded');
+      const ctx=canvas.getContext('2d');canvas.width=240;canvas.height=240;
+      ctx.fillStyle='#eef2ff';ctx.fillRect(0,0,240,240);
+      ctx.fillStyle='#4f46e5';ctx.font='bold 16px Lexend';ctx.textAlign='center';
+      ctx.fillText('Mã: '+currentQrCode,120,120);
+      ctx.fillText('(QR lib chưa tải)',120,150);
+    }
+  }catch(e){console.error('QR error:',e)}
   $('qr-code-text').textContent=currentQrCode;
   // Push active code to Firebase
   if(fbDb)fbDb.ref('activeSession').set({sessionId,code:currentQrCode,courseId:$('att-course').value,expires:Date.now()+35000});
@@ -473,7 +494,18 @@ function stopAttendance(){
   renderAttHistory();toast('✅ Đã dừng điểm danh');
 }
 
-function renderAttendance(){updateCourseSelects();renderAttHistory()}
+function renderAttendance(){
+  updateCourseSelects();
+  // Reset UI if not in active session
+  if(!attSessionId){
+    $('qr-panel').classList.add('hidden');
+    $('att-start-btn').classList.remove('hidden');
+    $('att-stop-btn').classList.add('hidden');
+    $('att-status').textContent='Chưa bắt đầu';
+    $('live-badge').className='live-badge off';$('live-badge').textContent='⚪ Điểm danh: TẮT';
+  }
+  renderAttHistory();
+}
 function renderAttHistory(){
   const courseId=$('att-history-course')?.value||'';
   const container=$('att-history');
