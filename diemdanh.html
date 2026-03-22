@@ -150,7 +150,7 @@ async function validateStudent(){
 
   // Validate against Firebase
   if(!db){err.textContent='⚠️ Chưa kết nối Firebase';err.classList.remove('hidden');return}
-  const snap=await db.ref('educheck/students').once('value');
+  const snap=await db.ref('educheck2/students').once('value');
   const students=snap.val()?Object.values(snap.val()):[];
   // Also check from data
   const found=students.find(s=>s.code===studentCode);
