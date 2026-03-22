@@ -135,25 +135,52 @@ async function validateInfo(){
 
   msg.className='status-msg warn';msg.textContent='⏳ Đang kiểm tra...';msg.classList.remove('hidden');
 
-  const snap=await db.ref('educheck/students').once('value');
-  const students=snap.val()?Object.values(snap.val()):[];
-  const found=students.find(s=>s.code===code);
+  // Load from educheck2 (new data structure)
+  const [svSnap,grpSnap]=await Promise.all([db.ref('educheck2/students').once('value'),db.ref('educheck2/groups').once('value')]);
+  const students=svSnap.val()?Object.values(svSnap.val()):[];
+  const groups=grpSnap.val()?Object.values(grpSnap.val()):[];
 
+  const found=students.find(s=>s.code===code);
   if(!found){msg.className='status-msg err';msg.textContent='❌ Mã SV không tồn tại trong hệ thống';return}
   if(found.name.toLowerCase().trim()!==name.toLowerCase().trim()){msg.className='status-msg err';msg.textContent='❌ Tên không khớp với mã SV';return}
-  if(!found.topic){msg.className='status-msg err';msg.textContent='❌ Chưa có đề tài khóa luận trong hệ thống. Liên hệ giảng viên.';return}
 
-  // Success
-  svData={code,name:found.name,batch:batch||found.batch||'',topic:found.topic,courseId:found.courseId||''};
+  // Find groups this student belongs to
+  const myGroups=groups.filter(g=>(g.memberCodes||[]).includes(code));
+  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Bạn chưa thuộc nhóm khóa luận nào. Liên hệ giảng viên.';return}
+
+  // If multiple groups, let them choose
   msg.classList.add('hidden');
+  svData={code,name:found.name,batch:batch||found.batch||''};
+
+  let groupSelect='';
+  if(myGroups.length===1){
+    svData.groupId=myGroups[0].id;svData.topic=myGroups[0].topic;svData.groupName=myGroups[0].name;
+  } else {
+    groupSelect=`<div style="margin-top:10px"><label style="display:block;font-size:.78rem;font-weight:600;color:#6e7490;margin-bottom:4px">Chọn nhóm nộp bài:</label><select id="group-select" style="width:100%;padding:10px;border:1px solid #e2e5f1;border-radius:10px;font-family:inherit;font-size:.9rem" onchange="selectGroup()">${myGroups.map(g=>`<option value="${g.id}">${g.name} — ${g.topic||'Chưa có đề tài'}</option>`).join('')}</select></div>`;
+    svData.groupId=myGroups[0].id;svData.topic=myGroups[0].topic;svData.groupName=myGroups[0].name;
+  }
 
   document.getElementById('confirm-info').innerHTML=`
     <div><strong>Mã SV:</strong> ${svData.code}</div>
     <div><strong>Họ tên:</strong> ${svData.name}</div>
     <div><strong>Khóa:</strong> ${svData.batch}</div>
-    <div><strong>Đề tài:</strong> ${svData.topic}</div>
-    <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Nếu thông tin sai, liên hệ giảng viên để cập nhật.</div>`;
+    <div><strong>Nhóm:</strong> <span id="disp-group">${svData.groupName||''}</span></div>
+    <div><strong>Đề tài:</strong> <span id="disp-topic">${svData.topic||''}</span></div>
+    ${groupSelect}
+    <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Sai thông tin? Liên hệ giảng viên.</div>`;
   goStep(2);
+}
+// For multi-group selection
+function selectGroup(){
+  const sel=document.getElementById('group-select');if(!sel)return;
+  // Re-fetch group info
+  db.ref('educheck2/groups').once('value').then(snap=>{
+    const groups=snap.val()?Object.values(snap.val()):[];
+    const g=groups.find(g=>g.id===sel.value);
+    if(g){svData.groupId=g.id;svData.topic=g.topic;svData.groupName=g.name;
+      document.getElementById('disp-group').textContent=g.name;
+      document.getElementById('disp-topic').textContent=g.topic||''}
+  });
 }
 
 // File handling
@@ -208,7 +235,8 @@ async function submitThesis(){
     const thesisData={
       id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
       code:svData.code,name:svData.name,batch:svData.batch,topic:svData.topic,
-      courseId:svData.courseId,fileName:selectedFile.name,fileUrl:url,filePath:path,
+      groupId:svData.groupId||'',groupName:svData.groupName||'',
+      fileName:selectedFile.name,fileUrl:url,filePath:path,
       time:Date.now(),status:'submitted'
     };
     await db.ref('thesis/'+thesisData.id).set(thesisData);
