@@ -1,251 +1,488 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>📄 Nộp Khóa Luận — EduCheck</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
-:root{--bg:#f5f6fa;--card:#fff;--border:#e2e5f1;--text:#1a1d2e;--dim:#6e7490;--pri:#4f46e5;--pri-light:#eef2ff;--green:#10b981;--green-light:#ecfdf5;--red:#ef4444;--red-light:#fef2f2;--orange:#f59e0b;--radius:12px}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Lexend',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px}
-.wrapper{max-width:480px;width:100%}
-.header{text-align:center;margin-bottom:24px}.header h1{font-size:1.4rem;font-weight:800;margin-bottom:4px}.header h1 span{color:var(--pri)}.header .sub{font-size:.82rem;color:var(--dim)}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.03)}
-label{display:block;font-size:.78rem;font-weight:600;color:var(--dim);margin-bottom:4px}
-input,select{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:10px;font-family:inherit;font-size:.95rem;outline:none;margin-bottom:12px;background:#fff}
-input:focus,select:focus{border-color:var(--pri)}
-.btn{width:100%;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;transition:all .15s}
-.btn-pri{background:var(--pri);color:#fff}.btn-green{background:var(--green);color:#fff}
-.btn-outline{background:none;border:2px solid var(--border);color:var(--dim)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.step{display:none}.step.active{display:block}
-.status-msg{padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;margin-bottom:12px;text-align:center}
-.status-msg.ok{background:var(--green-light);color:var(--green)}.status-msg.err{background:var(--red-light);color:var(--red)}.status-msg.warn{background:#fffbeb;color:var(--orange)}
-.info-box{padding:14px;background:var(--pri-light);border-radius:10px;margin-bottom:16px;font-size:.85rem;line-height:1.6}
-.info-box strong{color:var(--pri)}
-/* Upload area */
-.upload-area{border:2px dashed var(--border);border-radius:14px;padding:30px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:16px}
-.upload-area:hover{border-color:var(--pri);background:var(--pri-light)}
-.upload-area.has-file{border-color:var(--green);background:var(--green-light)}
-.upload-area .icon{font-size:2.5rem;margin-bottom:8px}
-.upload-area .txt{font-size:.85rem;color:var(--dim)}.upload-area .fname{font-size:.88rem;font-weight:700;color:var(--green);margin-top:6px}
-/* Progress */
-.progress{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;margin:12px 0}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--pri),var(--green));border-radius:5px;transition:width .3s}
-.result{text-align:center;padding:30px}.result .icon{font-size:4rem;margin-bottom:16px}.result h2{font-size:1.2rem;font-weight:700;margin-bottom:8px}.result .info{font-size:.85rem;color:var(--dim);line-height:1.6}
-.hidden{display:none!important}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>📄 Nộp Khóa Luận — EduCheck</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
+
+    :root {
+      --bg: #f5f6fa;
+      --card: #fff;
+      --border: #e2e5f1;
+      --text: #1a1d2e;
+      --dim: #6e7490;
+      --pri: #4f46e5;
+      --pri-light: #eef2ff;
+      --green: #10b981;
+      --green-light: #ecfdf5;
+      --red: #ef4444;
+      --red-light: #fef2f2;
+      --orange: #f59e0b;
+      --radius: 12px
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      font-family: 'Lexend', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px
+    }
+
+    .wrapper {
+      max-width: 480px;
+      width: 100%
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px
+    }
+
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 4px
+    }
+
+    .header h1 span {
+      color: var(--pri)
+    }
+
+    .header .sub {
+      font-size: .82rem;
+      color: var(--dim)
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .03)
+    }
+
+    label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--dim);
+      margin-bottom: 4px
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: .95rem;
+      outline: none;
+      margin-bottom: 12px;
+      background: #fff
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--pri)
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .btn-pri {
+      background: var(--pri);
+      color: #fff
+    }
+
+    .btn-green {
+      background: var(--green);
+      color: #fff
+    }
+
+    .btn-outline {
+      background: none;
+      border: 2px solid var(--border);
+      color: var(--dim)
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    .step {
+      display: none
+    }
+
+    .step.active {
+      display: block
+    }
+
+    .status-msg {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: .85rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      text-align: center
+    }
+
+    .status-msg.ok {
+      background: var(--green-light);
+      color: var(--green)
+    }
+
+    .status-msg.err {
+      background: var(--red-light);
+      color: var(--red)
+    }
+
+    .status-msg.warn {
+      background: #fffbeb;
+      color: var(--orange)
+    }
+
+    .info-box {
+      padding: 14px;
+      background: var(--pri-light);
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: .85rem;
+      line-height: 1.6
+    }
+
+    .info-box strong {
+      color: var(--pri)
+    }
+
+    /* Upload area */
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 16px
+    }
+
+    .upload-area:hover {
+      border-color: var(--pri);
+      background: var(--pri-light)
+    }
+
+    .upload-area.has-file {
+      border-color: var(--green);
+      background: var(--green-light)
+    }
+
+    .upload-area .icon {
+      font-size: 2.5rem;
+      margin-bottom: 8px
+    }
+
+    .upload-area .txt {
+      font-size: .85rem;
+      color: var(--dim)
+    }
+
+    .upload-area .fname {
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-top: 6px
+    }
+
+    /* Progress */
+    .progress {
+      height: 10px;
+      background: var(--bg);
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 12px 0
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--pri), var(--green));
+      border-radius: 5px;
+      transition: width .3s
+    }
+
+    .result {
+      text-align: center;
+      padding: 30px
+    }
+
+    .result .icon {
+      font-size: 4rem;
+      margin-bottom: 16px
+    }
+
+    .result h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 8px
+    }
+
+    .result .info {
+      font-size: .85rem;
+      color: var(--dim);
+      line-height: 1.6
+    }
+
+    .hidden {
+      display: none !important
+    }
+  </style>
 </head>
+
 <body>
-<div class="wrapper">
-  <div class="header"><h1>📄 <span>EduCheck</span> Nộp bài</h1><div class="sub">Khóa luận / Báo cáo cuối kỳ</div></div>
-
-  <!-- Firebase setup (if not configured) -->
-  <div class="card hidden" id="fb-setup" style="border:2px solid var(--orange);background:#fffbeb">
-    <h3 style="font-size:.9rem;font-weight:700;margin-bottom:8px">⚠️ Chưa kết nối hệ thống</h3>
-    <p style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Dán Firebase Config JSON từ giảng viên để kết nối. Hoặc yêu cầu GV gửi link có sẵn cấu hình.</p>
-    <textarea id="fb-cfg-input" rows="4" placeholder='{"apiKey":"...","databaseURL":"...","storageBucket":"..."}' style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;margin-bottom:10px"></textarea>
-    <button class="btn btn-pri" onclick="saveFbSetup()" style="font-size:.85rem">💾 Kết nối</button>
-  </div>
-
-  <!-- STEP 1: Enter info -->
-  <div class="step active" id="step1">
-    <div class="card">
-      <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 1: Xác minh thông tin</h3>
-      <label>Mã sinh viên</label>
-      <input type="text" id="sv-code" placeholder="VD: 21110001" oninput="clearValidation()">
-      <label>Họ tên đầy đủ</label>
-      <input type="text" id="sv-name" placeholder="Nguyễn Văn A" oninput="clearValidation()">
-      <label>Khóa</label>
-      <input type="text" id="sv-batch" placeholder="VD: K21">
-      <div id="validate-msg" class="hidden"></div>
-      <button class="btn btn-pri" onclick="validateInfo()">Kiểm tra thông tin →</button>
+  <div class="wrapper">
+    <div class="header">
+      <h1>📄 <span>EduCheck</span> Nộp bài</h1>
+      <div class="sub">Khóa luận / Báo cáo cuối kỳ</div>
     </div>
-  </div>
 
-  <!-- STEP 2: Confirm + Upload -->
-  <div class="step" id="step2">
-    <div class="card">
-      <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 2: Xác nhận & Nộp file</h3>
-      <div class="info-box" id="confirm-info"></div>
+    <!-- Firebase setup (if not configured) -->
+    <div class="card hidden" id="fb-setup" style="border:2px solid var(--orange);background:#fffbeb">
+      <h3 style="font-size:.9rem;font-weight:700;margin-bottom:8px">⚠️ Chưa kết nối hệ thống</h3>
+      <p style="font-size:.82rem;color:var(--dim);margin-bottom:12px">Dán Firebase Config JSON từ giảng viên để kết nối.
+        Hoặc yêu cầu GV gửi link có sẵn cấu hình.</p>
+      <textarea id="fb-cfg-input" rows="4" placeholder='{"apiKey":"...","databaseURL":"...","storageBucket":"..."}'
+        style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;margin-bottom:10px"></textarea>
+      <button class="btn btn-pri" onclick="saveFbSetup()" style="font-size:.85rem">💾 Kết nối</button>
+    </div>
 
-      <label>Chọn file khóa luận (PDF, DOCX, ZIP — tối đa 50MB)</label>
-      <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
-        <div class="icon">📎</div>
-        <div class="txt">Bấm để chọn file hoặc kéo thả vào đây</div>
-        <div class="fname hidden" id="file-name"></div>
+    <!-- STEP 1: Enter info -->
+    <div class="step active" id="step1">
+      <div class="card">
+        <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 1: Xác minh thông tin</h3>
+        <label>Mã sinh viên</label>
+        <input type="text" id="sv-code" placeholder="VD: 21110001" oninput="clearValidation()">
+        <label>Họ tên đầy đủ</label>
+        <input type="text" id="sv-name" placeholder="Nguyễn Văn A" oninput="clearValidation()">
+        <label>Khóa</label>
+        <input type="text" id="sv-batch" placeholder="VD: K21">
+        <div id="validate-msg" class="hidden"></div>
+        <button class="btn btn-pri" onclick="validateInfo()">Kiểm tra thông tin →</button>
       </div>
-      <input type="file" id="file-input" accept=".pdf,.doc,.docx,.zip,.rar" style="display:none" onchange="onFileSelect(event)">
+    </div>
 
-      <div class="progress hidden" id="upload-progress"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-      <div id="upload-status" style="text-align:center;font-size:.82rem;color:var(--dim);margin-bottom:12px"></div>
+    <!-- STEP 2: Confirm + Upload -->
+    <div class="step" id="step2">
+      <div class="card">
+        <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 2: Xác nhận & Nộp file</h3>
+        <div class="info-box" id="confirm-info"></div>
 
-      <button class="btn btn-green" id="submit-btn" onclick="submitThesis()" disabled>📤 Nộp bài</button>
-      <button class="btn btn-outline" onclick="goStep(1)" style="margin-top:10px">← Quay lại</button>
+        <label>Chọn file khóa luận (PDF, DOCX, ZIP — tối đa 50MB)</label>
+        <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+          <div class="icon">📎</div>
+          <div class="txt">Bấm để chọn file hoặc kéo thả vào đây</div>
+          <div class="fname hidden" id="file-name"></div>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.doc,.docx,.zip,.rar" style="display:none"
+          onchange="onFileSelect(event)">
+
+        <div class="progress hidden" id="upload-progress">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+        <div id="upload-status" style="text-align:center;font-size:.82rem;color:var(--dim);margin-bottom:12px"></div>
+
+        <button class="btn btn-green" id="submit-btn" onclick="submitThesis()" disabled>📤 Nộp bài</button>
+        <button class="btn btn-outline" onclick="goStep(1)" style="margin-top:10px">← Quay lại</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Confirmation -->
+    <div class="step" id="step3">
+      <div class="card">
+        <div class="result" id="result-content"></div>
+        <button class="btn btn-outline" onclick="resetAll()">Nộp bài khác</button>
+      </div>
     </div>
   </div>
 
-  <!-- STEP 3: Confirmation -->
-  <div class="step" id="step3">
-    <div class="card">
-      <div class="result" id="result-content"></div>
-      <button class="btn btn-outline" onclick="resetAll()">Nộp bài khác</button>
-    </div>
-  </div>
-</div>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script>
+    let db = null, storage = null, selectedFile = null;
+    let svData = { code: '', name: '', batch: '', topic: '', courseId: '' };
+    const DEFAULT_FB = { "apiKey": "AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE", "authDomain": "education-df9a0.firebaseapp.com", "databaseURL": "https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app", "projectId": "education-df9a0", "storageBucket": "education-df9a0.firebasestorage.app", "messagingSenderId": "770840279264", "appId": "1:770840279264:web:fba64d37c635edb3967885" };
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<script>
-let db=null,storage=null,selectedFile=null;
-let svData={code:'',name:'',batch:'',topic:'',courseId:''};
-const DEFAULT_FB={"apiKey":"AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE","authDomain":"education-df9a0.firebaseapp.com","databaseURL":"https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app","projectId":"education-df9a0","storageBucket":"education-df9a0.firebasestorage.app","messagingSenderId":"770840279264","appId":"1:770840279264:web:fba64d37c635edb3967885"};
+    function initFB() {
+      const params = new URLSearchParams(window.location.search);
+      const urlCfg = params.get('fb');
+      if (urlCfg) { try { const c = JSON.parse(atob(urlCfg)); localStorage.setItem('educheck_fb', JSON.stringify(c)) } catch { } }
+      let cfg = null; const saved = localStorage.getItem('educheck_fb');
+      if (saved) { try { cfg = JSON.parse(saved) } catch { } }
+      if (!cfg) cfg = DEFAULT_FB;
+      try { firebase.initializeApp(cfg); db = firebase.database(); storage = firebase.storage(); document.getElementById('fb-setup').classList.add('hidden') } catch (e) { showFbSetup() }
+    }
 
-function initFB(){
-  const params=new URLSearchParams(window.location.search);
-  const urlCfg=params.get('fb');
-  if(urlCfg){try{const c=JSON.parse(atob(urlCfg));localStorage.setItem('educheck_fb',JSON.stringify(c))}catch{}}
-  let cfg=null;const saved=localStorage.getItem('educheck_fb');
-  if(saved){try{cfg=JSON.parse(saved)}catch{}}
-  if(!cfg)cfg=DEFAULT_FB;
-  try{firebase.initializeApp(cfg);db=firebase.database();storage=firebase.storage();document.getElementById('fb-setup').classList.add('hidden')}catch(e){showFbSetup()}
-}
+    function showFbSetup() { document.getElementById('fb-setup').classList.remove('hidden') }
+    function saveFbSetup() {
+      const raw = document.getElementById('fb-cfg-input').value.trim();
+      try {
+        const c = JSON.parse(raw); if (!c.apiKey) { alert('Thiếu apiKey'); return }
+        localStorage.setItem('educheck_fb', JSON.stringify(c)); location.reload();
+      } catch { alert('JSON không hợp lệ') }
+    }
 
-function showFbSetup(){document.getElementById('fb-setup').classList.remove('hidden')}
-function saveFbSetup(){
-  const raw=document.getElementById('fb-cfg-input').value.trim();
-  try{const c=JSON.parse(raw);if(!c.apiKey){alert('Thiếu apiKey');return}
-    localStorage.setItem('educheck_fb',JSON.stringify(c));location.reload();
-  }catch{alert('JSON không hợp lệ')}
-}
+    function goStep(n) { document.querySelectorAll('.step').forEach(s => s.classList.remove('active')); document.getElementById('step' + n).classList.add('active') }
+    function clearValidation() { document.getElementById('validate-msg').classList.add('hidden') }
 
-function goStep(n){document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));document.getElementById('step'+n).classList.add('active')}
-function clearValidation(){document.getElementById('validate-msg').classList.add('hidden')}
+    async function validateInfo() {
+      const code = document.getElementById('sv-code').value.trim();
+      const name = document.getElementById('sv-name').value.trim();
+      const batch = document.getElementById('sv-batch').value.trim();
+      const msg = document.getElementById('validate-msg');
 
-async function validateInfo(){
-  const code=document.getElementById('sv-code').value.trim();
-  const name=document.getElementById('sv-name').value.trim();
-  const batch=document.getElementById('sv-batch').value.trim();
-  const msg=document.getElementById('validate-msg');
+      if (!code || !name) { msg.className = 'status-msg err'; msg.textContent = '⚠️ Nhập đầy đủ mã SV và họ tên'; msg.classList.remove('hidden'); return }
+      if (!db) { msg.className = 'status-msg err'; msg.textContent = '⚠️ Chưa kết nối Firebase'; msg.classList.remove('hidden'); return }
 
-  if(!code||!name){msg.className='status-msg err';msg.textContent='⚠️ Nhập đầy đủ mã SV và họ tên';msg.classList.remove('hidden');return}
-  if(!db){msg.className='status-msg err';msg.textContent='⚠️ Chưa kết nối Firebase';msg.classList.remove('hidden');return}
+      msg.className = 'status-msg warn'; msg.textContent = '⏳ Đang kiểm tra...'; msg.classList.remove('hidden');
 
-  msg.className='status-msg warn';msg.textContent='⏳ Đang kiểm tra...';msg.classList.remove('hidden');
+      // Load from educheck2 (new data structure)
+      const [svSnap, grpSnap] = await Promise.all([db.ref('educheck2/students').once('value'), db.ref('educheck2/groups').once('value')]);
+      const students = svSnap.val() ? Object.values(svSnap.val()) : [];
+      const groups = grpSnap.val() ? Object.values(grpSnap.val()) : [];
 
-  // Load from educheck2 (new data structure)
-  const [svSnap,grpSnap]=await Promise.all([db.ref('educheck2/students').once('value'),db.ref('educheck2/groups').once('value')]);
-  const students=svSnap.val()?Object.values(svSnap.val()):[];
-  const groups=grpSnap.val()?Object.values(grpSnap.val()):[];
+      const found = students.find(s => s.code === code);
+      if (!found) { msg.className = 'status-msg err'; msg.textContent = '❌ Mã SV không tồn tại trong hệ thống'; return }
+      if (found.name.toLowerCase().trim() !== name.toLowerCase().trim()) { msg.className = 'status-msg err'; msg.textContent = '❌ Tên không khớp với mã SV'; return }
 
-  const found=students.find(s=>s.code===code);
-  if(!found){msg.className='status-msg err';msg.textContent='❌ Mã SV không tồn tại trong hệ thống';return}
-  if(found.name.toLowerCase().trim()!==name.toLowerCase().trim()){msg.className='status-msg err';msg.textContent='❌ Tên không khớp với mã SV';return}
+      // Find groups this student belongs to
+      const myGroups = groups.filter(g => (g.memberCodes || []).includes(code));
+      if (!myGroups.length) { msg.className = 'status-msg err'; msg.textContent = '❌ Bạn chưa thuộc nhóm khóa luận nào. Liên hệ giảng viên.'; return }
 
-  // Find groups this student belongs to
-  const myGroups=groups.filter(g=>(g.memberCodes||[]).includes(code));
-  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Bạn chưa thuộc nhóm khóa luận nào. Liên hệ giảng viên.';return}
+      // If multiple groups, let them choose
+      msg.classList.add('hidden');
+      svData = { code, name: found.name, batch: batch || found.batch || '' };
 
-  // If multiple groups, let them choose
-  msg.classList.add('hidden');
-  svData={code,name:found.name,batch:batch||found.batch||''};
+      let groupSelect = '';
+      if (myGroups.length === 1) {
+        svData.groupId = myGroups[0].id; svData.topic = myGroups[0].topic; svData.groupName = myGroups[0].name;
+      } else {
+        groupSelect = `<div style="margin-top:10px"><label style="display:block;font-size:.78rem;font-weight:600;color:#6e7490;margin-bottom:4px">Chọn nhóm nộp bài:</label><select id="group-select" style="width:100%;padding:10px;border:1px solid #e2e5f1;border-radius:10px;font-family:inherit;font-size:.9rem" onchange="selectGroup()">${myGroups.map(g => `<option value="${g.id}">${g.name} — ${g.topic || 'Chưa có đề tài'}</option>`).join('')}</select></div>`;
+        svData.groupId = myGroups[0].id; svData.topic = myGroups[0].topic; svData.groupName = myGroups[0].name;
+      }
 
-  let groupSelect='';
-  if(myGroups.length===1){
-    svData.groupId=myGroups[0].id;svData.topic=myGroups[0].topic;svData.groupName=myGroups[0].name;
-  } else {
-    groupSelect=`<div style="margin-top:10px"><label style="display:block;font-size:.78rem;font-weight:600;color:#6e7490;margin-bottom:4px">Chọn nhóm nộp bài:</label><select id="group-select" style="width:100%;padding:10px;border:1px solid #e2e5f1;border-radius:10px;font-family:inherit;font-size:.9rem" onchange="selectGroup()">${myGroups.map(g=>`<option value="${g.id}">${g.name} — ${g.topic||'Chưa có đề tài'}</option>`).join('')}</select></div>`;
-    svData.groupId=myGroups[0].id;svData.topic=myGroups[0].topic;svData.groupName=myGroups[0].name;
-  }
-
-  document.getElementById('confirm-info').innerHTML=`
+      document.getElementById('confirm-info').innerHTML = `
     <div><strong>Mã SV:</strong> ${svData.code}</div>
     <div><strong>Họ tên:</strong> ${svData.name}</div>
     <div><strong>Khóa:</strong> ${svData.batch}</div>
-    <div><strong>Nhóm:</strong> <span id="disp-group">${svData.groupName||''}</span></div>
-    <div><strong>Đề tài:</strong> <span id="disp-topic">${svData.topic||''}</span></div>
+    <div><strong>Nhóm:</strong> <span id="disp-group">${svData.groupName || ''}</span></div>
+    <div><strong>Đề tài:</strong> <span id="disp-topic">${svData.topic || ''}</span></div>
     ${groupSelect}
     <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Sai thông tin? Liên hệ giảng viên.</div>`;
-  goStep(2);
-}
-// For multi-group selection
-function selectGroup(){
-  const sel=document.getElementById('group-select');if(!sel)return;
-  // Re-fetch group info
-  db.ref('educheck2/groups').once('value').then(snap=>{
-    const groups=snap.val()?Object.values(snap.val()):[];
-    const g=groups.find(g=>g.id===sel.value);
-    if(g){svData.groupId=g.id;svData.topic=g.topic;svData.groupName=g.name;
-      document.getElementById('disp-group').textContent=g.name;
-      document.getElementById('disp-topic').textContent=g.topic||''}
-  });
-}
+      goStep(2);
+    }
+    // For multi-group selection
+    function selectGroup() {
+      const sel = document.getElementById('group-select'); if (!sel) return;
+      // Re-fetch group info
+      db.ref('educheck2/groups').once('value').then(snap => {
+        const groups = snap.val() ? Object.values(snap.val()) : [];
+        const g = groups.find(g => g.id === sel.value);
+        if (g) {
+          svData.groupId = g.id; svData.topic = g.topic; svData.groupName = g.name;
+          document.getElementById('disp-group').textContent = g.name;
+          document.getElementById('disp-topic').textContent = g.topic || ''
+        }
+      });
+    }
 
-// File handling
-function onFileSelect(e){
-  const file=e.target.files[0];if(!file)return;
-  if(file.size>50*1024*1024){alert('File quá 50MB!');return}
-  selectedFile=file;
-  const area=document.getElementById('upload-area');
-  area.classList.add('has-file');
-  area.querySelector('.icon').textContent='✅';
-  area.querySelector('.txt').textContent='Đã chọn file:';
-  const fname=document.getElementById('file-name');fname.textContent=file.name+' ('+formatSize(file.size)+')';fname.classList.remove('hidden');
-  document.getElementById('submit-btn').disabled=false;
-}
+    // File handling
+    function onFileSelect(e) {
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 50 * 1024 * 1024) { alert('File quá 50MB!'); return }
+      selectedFile = file;
+      const area = document.getElementById('upload-area');
+      area.classList.add('has-file');
+      area.querySelector('.icon').textContent = '✅';
+      area.querySelector('.txt').textContent = 'Đã chọn file:';
+      const fname = document.getElementById('file-name'); fname.textContent = file.name + ' (' + formatSize(file.size) + ')'; fname.classList.remove('hidden');
+      document.getElementById('submit-btn').disabled = false;
+    }
 
-function formatSize(bytes){
-  if(bytes<1024)return bytes+'B';
-  if(bytes<1048576)return(bytes/1024).toFixed(1)+'KB';
-  return(bytes/1048576).toFixed(1)+'MB';
-}
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + 'B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB';
+      return (bytes / 1048576).toFixed(1) + 'MB';
+    }
 
-// Drag & drop
-const area=document.getElementById('upload-area');
-area.addEventListener('dragover',e=>{e.preventDefault();area.style.borderColor='var(--pri)'});
-area.addEventListener('dragleave',()=>area.style.borderColor='');
-area.addEventListener('drop',e=>{e.preventDefault();area.style.borderColor='';
-  if(e.dataTransfer.files.length){document.getElementById('file-input').files=e.dataTransfer.files;onFileSelect({target:{files:e.dataTransfer.files}})}});
-
-async function submitThesis(){
-  if(!selectedFile||!db||!storage)return;
-  const btn=document.getElementById('submit-btn');btn.disabled=true;btn.textContent='⏳ Đang tải lên...';
-  const progress=document.getElementById('upload-progress');progress.classList.remove('hidden');
-  const status=document.getElementById('upload-status');
-
-  try{
-    // Upload to Firebase Storage
-    const ext=selectedFile.name.split('.').pop();
-    const path=`thesis/${svData.code}_${Date.now()}.${ext}`;
-    const ref=storage.ref(path);
-    const task=ref.put(selectedFile);
-
-    task.on('state_changed',snap=>{
-      const pct=(snap.bytesTransferred/snap.totalBytes*100).toFixed(0);
-      document.getElementById('progress-fill').style.width=pct+'%';
-      status.textContent='Đang tải: '+pct+'%';
+    // Drag & drop
+    const area = document.getElementById('upload-area');
+    area.addEventListener('dragover', e => { e.preventDefault(); area.style.borderColor = 'var(--pri)' });
+    area.addEventListener('dragleave', () => area.style.borderColor = '');
+    area.addEventListener('drop', e => {
+      e.preventDefault(); area.style.borderColor = '';
+      if (e.dataTransfer.files.length) { document.getElementById('file-input').files = e.dataTransfer.files; onFileSelect({ target: { files: e.dataTransfer.files } }) }
     });
 
-    await task;
-    const url=await ref.getDownloadURL();
+    async function submitThesis() {
+      if (!selectedFile || !db || !storage) return;
+      const btn = document.getElementById('submit-btn'); btn.disabled = true; btn.textContent = '⏳ Đang tải lên...';
+      const progress = document.getElementById('upload-progress'); progress.classList.remove('hidden');
+      const status = document.getElementById('upload-status');
 
-    // Save metadata to Firebase DB
-    const thesisData={
-      id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-      code:svData.code,name:svData.name,batch:svData.batch,topic:svData.topic,
-      groupId:svData.groupId||'',groupName:svData.groupName||'',
-      fileName:selectedFile.name,fileUrl:url,filePath:path,
-      time:Date.now(),status:'submitted'
-    };
-    await db.ref('thesis/'+thesisData.id).set(thesisData);
+      try {
+        // Upload to Firebase Storage
+        const ext = selectedFile.name.split('.').pop();
+        const path = `thesis/${svData.code}_${Date.now()}.${ext}`;
+        const ref = storage.ref(path);
+        const task = ref.put(selectedFile);
 
-    // Show confirmation after 2-3s delay
-    status.textContent='✅ Tải lên hoàn tất! Đang xác nhận...';
-    setTimeout(()=>{
-      goStep(3);
-      document.getElementById('result-content').innerHTML=`
+        task.on('state_changed', snap => {
+          const pct = (snap.bytesTransferred / snap.totalBytes * 100).toFixed(0);
+          document.getElementById('progress-fill').style.width = pct + '%';
+          status.textContent = 'Đang tải: ' + pct + '%';
+        });
+
+        await task;
+        const url = await ref.getDownloadURL();
+
+        // Save metadata to Firebase DB
+        const thesisData = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          code: svData.code, name: svData.name, batch: svData.batch, topic: svData.topic,
+          groupId: svData.groupId || '', groupName: svData.groupName || '',
+          fileName: selectedFile.name, fileUrl: url, filePath: path,
+          time: Date.now(), status: 'submitted'
+        };
+        await db.ref('thesis/' + thesisData.id).set(thesisData);
+
+        // Show confirmation after 2-3s delay
+        status.textContent = '✅ Tải lên hoàn tất! Đang xác nhận...';
+        setTimeout(() => {
+          goStep(3);
+          document.getElementById('result-content').innerHTML = `
         <div class="icon">✅</div>
         <h2>Nộp bài thành công!</h2>
         <div class="info">
@@ -255,24 +492,25 @@ async function submitThesis(){
           Thời gian: ${new Date().toLocaleString('vi-VN')}<br><br>
           <span style="color:var(--green);font-weight:700">📧 Xác nhận đã được ghi nhận vào hệ thống.</span>
         </div>`;
-    },2500);
+        }, 2500);
 
-  }catch(e){
-    status.textContent='❌ Lỗi: '+e.message;btn.disabled=false;btn.textContent='📤 Thử lại';
-  }
-}
+      } catch (e) {
+        status.textContent = '❌ Lỗi: ' + e.message; btn.disabled = false; btn.textContent = '📤 Thử lại';
+      }
+    }
 
-function resetAll(){
-  goStep(1);selectedFile=null;
-  ['sv-code','sv-name','sv-batch'].forEach(id=>document.getElementById(id).value='');
-  const area2=document.getElementById('upload-area');area2.classList.remove('has-file');
-  area2.querySelector('.icon').textContent='📎';area2.querySelector('.txt').textContent='Bấm để chọn file hoặc kéo thả vào đây';
-  document.getElementById('file-name').classList.add('hidden');
-  document.getElementById('submit-btn').disabled=true;document.getElementById('submit-btn').textContent='📤 Nộp bài';
-  document.getElementById('upload-progress').classList.add('hidden');document.getElementById('upload-status').textContent='';
-}
+    function resetAll() {
+      goStep(1); selectedFile = null;
+      ['sv-code', 'sv-name', 'sv-batch'].forEach(id => document.getElementById(id).value = '');
+      const area2 = document.getElementById('upload-area'); area2.classList.remove('has-file');
+      area2.querySelector('.icon').textContent = '📎'; area2.querySelector('.txt').textContent = 'Bấm để chọn file hoặc kéo thả vào đây';
+      document.getElementById('file-name').classList.add('hidden');
+      document.getElementById('submit-btn').disabled = true; document.getElementById('submit-btn').textContent = '📤 Nộp bài';
+      document.getElementById('upload-progress').classList.add('hidden'); document.getElementById('upload-status').textContent = '';
+    }
 
-initFB();
-</script>
+    initFB();
+  </script>
 </body>
+
 </html>
