@@ -432,13 +432,61 @@ function renderAttHist(){
   const fc=$('att-hc')?.value||'';let ses=[...D.sessions].sort((a,b)=>b.startTime-a.startTime);
   if(fc)ses=ses.filter(s=>s.courseId===fc);
   const c=$('att-hist');
-  if(!ses.length){c.innerHTML='<div class="empty"><div class="ei">📅</div><p>Chưa có</p></div>';return}
-  c.innerHTML=ses.slice(0,30).map(s=>{
+  // Clean expired trash (>7 days)
+  if(D.trash){D.trash=D.trash.filter(t=>Date.now()-t.deletedAt<7*86400000);save()}
+  const trashCount=(D.trash||[]).length;
+  
+  if(!ses.length&&!trashCount){c.innerHTML='<div class="empty"><div class="ei">📅</div><p>Chưa có</p></div>';return}
+  
+  let html=ses.slice(0,30).map(s=>{
     const att=D.attendance[s.id]||{};const cnt=Object.keys(att).length;
     const total=D.students.filter(sv=>(sv.courseIds||[]).includes(s.courseId)).length;
     const pct=total>0?Math.round(cnt/total*100):0;
-    return `<div class="drill" onclick="drillSession('${s.id}')"><div style="display:flex;justify-content:space-between;align-items:center"><div><strong style="font-size:.85rem">📅 ${fmD(s.startTime)}</strong><div style="font-size:.72rem;color:var(--dim)">${esc(cName(s.courseId))}</div></div><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${total} (${pct}%)</span></div></div>`;
+    return `<div class="drill" style="display:flex;justify-content:space-between;align-items:center">
+      <div onclick="drillSession('${s.id}')" style="flex:1;cursor:pointer"><strong style="font-size:.85rem">📅 ${fmD(s.startTime)}</strong><div style="font-size:.72rem;color:var(--dim)">${esc(cName(s.courseId))}</div></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${total} (${pct}%)</span><button class="btn bx bo" onclick="event.stopPropagation();delSession('${s.id}')" title="Xoá" style="color:var(--red)">🗑️</button></div>
+    </div>`;
   }).join('');
+  
+  // Trash section
+  if(trashCount){
+    html+=`<div style="margin-top:16px;padding-top:12px;border-top:2px dashed var(--border)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:.82rem;font-weight:700;color:var(--dim)">🗑️ Thùng rác (${trashCount}) — tự xoá sau 7 ngày</span><button class="btn bx bo" onclick="emptyTrash()">Dọn sạch</button></div>`;
+    html+=D.trash.map(t=>{
+      const daysLeft=Math.ceil((7*86400000-(Date.now()-t.deletedAt))/86400000);
+      return `<div style="padding:8px 12px;background:var(--red-lt);border-radius:8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:.8rem"><div><span style="text-decoration:line-through;color:var(--dim)">📅 ${fmD(t.session.startTime)} — ${esc(cName(t.session.courseId))}</span><span style="color:var(--dim);font-size:.7rem"> · còn ${daysLeft} ngày</span></div><button class="btn bx bp" onclick="restoreSession('${t.session.id}')">↩️ Khôi phục</button></div>`;
+    }).join('');
+    html+='</div>';
+  }
+  c.innerHTML=html;
+}
+
+function delSession(sid){
+  if(!confirm('Xoá buổi điểm danh này? (Có thể khôi phục trong 7 ngày)'))return;
+  const session=D.sessions.find(s=>s.id===sid);if(!session)return;
+  const attData=D.attendance[sid]||{};
+  // Move to trash
+  if(!D.trash)D.trash=[];
+  D.trash.push({session:{...session},attendance:attData,deletedAt:Date.now()});
+  // Remove from active
+  D.sessions=D.sessions.filter(s=>s.id!==sid);
+  delete D.attendance[sid];
+  if(fbDb)fbDb.ref('attendance/'+sid).remove();
+  save();renderAttHist();renderAll();toast('🗑️ Đã xoá — khôi phục trong 7 ngày');
+}
+
+function restoreSession(sid){
+  const idx=(D.trash||[]).findIndex(t=>t.session.id===sid);if(idx<0)return;
+  const item=D.trash[idx];
+  D.sessions.push(item.session);
+  D.attendance[item.session.id]=item.attendance;
+  if(fbDb)fbDb.ref('attendance/'+item.session.id).set(item.attendance);
+  D.trash.splice(idx,1);
+  save();renderAttHist();renderAll();toast('↩️ Đã khôi phục');
+}
+
+function emptyTrash(){
+  if(!confirm('Dọn sạch thùng rác? Không thể khôi phục!'))return;
+  D.trash=[];save();renderAttHist();toast('🗑️ Đã dọn sạch');
 }
 
 function drillSession(sid){
@@ -483,15 +531,48 @@ function renderStats(){
 function renderStatCourse(c){
   if(!D.courses.length){c.innerHTML='<p style="color:var(--dim)">Chưa có môn</p>';return}
   c.innerHTML=D.courses.map(course=>{
-    const ses=D.sessions.filter(s=>s.courseId===course.id);
+    const ses=D.sessions.filter(s=>s.courseId===course.id).sort((a,b)=>a.startTime-b.startTime);
     const svs=D.students.filter(s=>(s.courseIds||[]).includes(course.id));
-    let totalPct=0;
-    const rows=ses.map((s,i)=>{
-      const att=D.attendance[s.id]||{};const cnt=Object.keys(att).length;const pct=svs.length>0?Math.round(cnt/svs.length*100):0;totalPct+=pct;
+    if(!ses.length)return `<div class="card"><div class="ct">📚 ${esc(course.name)} <span style="font-size:.72rem;color:var(--dim);font-weight:400">· ${svs.length} SV · Chưa điểm danh</span></div></div>`;
+
+    // Cumulative summary per student
+    const svStats=svs.map(sv=>{
+      let present=0;
+      ses.forEach(s=>{const a=D.attendance[s.id]||{};if(a[sv.code])present++});
+      return{code:sv.code,name:sv.name,present,total:ses.length,pct:ses.length>0?Math.round(present/ses.length*100):0};
+    }).sort((a,b)=>a.pct-b.pct); // worst attendance first
+
+    const avgPct=svStats.length>0?Math.round(svStats.reduce((s,v)=>s+v.pct,0)/svStats.length):0;
+    const goodCount=svStats.filter(s=>s.pct>=80).length;
+    const warnCount=svStats.filter(s=>s.pct<50).length;
+
+    // Per-session summary row
+    const sessionRows=ses.map((s,i)=>{
+      const att=D.attendance[s.id]||{};const cnt=Object.keys(att).length;const pct=svs.length>0?Math.round(cnt/svs.length*100):0;
       return `<div class="drill" onclick="drillSessionStat('${s.id}')"><div style="display:flex;justify-content:space-between;font-size:.82rem"><span>Buổi ${i+1} — ${fmD(s.startTime)}</span><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${svs.length} (${pct}%)</span></div></div>`;
     }).join('');
-    const avg=ses.length>0?Math.round(totalPct/ses.length):0;
-    return `<div class="card"><div class="ct">📚 ${esc(course.name)} <span style="font-size:.72rem;color:var(--dim);font-weight:400">· ${svs.length} SV · ${ses.length} buổi · TB ${avg}%</span></div>${rows||'<p style="color:var(--dim);font-size:.82rem">Chưa điểm danh</p>'}</div>`;
+
+    // Student cumulative table
+    const svTable=`<div class="tw" style="margin-top:12px"><table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Có mặt</th><th>Vắng</th><th>Tỷ lệ</th><th>Đánh giá</th></tr></thead><tbody>${
+      svStats.map(sv=>{
+        const absent=sv.total-sv.present;
+        const evalBadge=sv.pct>=80?'<span class="badge bdg">Tốt</span>':sv.pct>=50?'<span class="badge bdo">Cần cải thiện</span>':'<span class="badge bdr">Cảnh báo</span>';
+        return `<tr><td><strong>${esc(sv.code)}</strong></td><td>${esc(sv.name)}</td><td style="color:var(--green);font-weight:600">${sv.present}</td><td style="color:var(--red);font-weight:600">${absent}</td><td><strong style="color:${sv.pct>=80?'var(--green)':sv.pct>=50?'var(--orange)':'var(--red)'}">${sv.pct}%</strong></td><td>${evalBadge}</td></tr>`;
+      }).join('')
+    }</tbody></table></div>`;
+
+    return `<div class="card">
+      <div class="ct">📚 ${esc(course.name)}</div>
+      <div class="sg" style="margin-bottom:12px">
+        <div class="sc"><div class="v vb">${svs.length}</div><div class="l">Sinh viên</div></div>
+        <div class="sc"><div class="v vp">${ses.length}</div><div class="l">Buổi học</div></div>
+        <div class="sc"><div class="v" style="color:${avgPct>=80?'var(--green)':avgPct>=50?'var(--orange)':'var(--red)'}">${avgPct}%</div><div class="l">TB chuyên cần</div></div>
+        <div class="sc"><div class="v vr">${warnCount}</div><div class="l">SV cảnh báo</div></div>
+      </div>
+      <details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--pri);padding:8px 0">📅 Chi tiết từng buổi (${ses.length} buổi)</summary>${sessionRows}</details>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:8px">👥 Chuyên cần cộng dồn — ${svs.length} SV × ${ses.length} buổi</div>
+      ${svTable}
+    </div>`;
   }).join('');
 }
 
@@ -505,26 +586,55 @@ function drillSessionStat(sid){
 }
 
 function renderStatSV(c){
-  c.innerHTML=`<div class="fr"><select id="stat-sv-sel" onchange="renderSVDetail()" style="max-width:300px"><option value="">— Chọn SV —</option>${D.students.map(s=>`<option value="${s.code}">${s.name} (${s.code})</option>`).join('')}</select></div><div id="stat-sv-detail"></div>`;
+  // Filter by course first, then show student selector
+  c.innerHTML=`<div class="fg" style="margin-bottom:14px"><div class="fr"><label>Lọc theo lớp</label><select id="stat-sv-course" onchange="updateStatSvList()" style="max-width:250px"><option value="">Tất cả</option>${D.courses.map(co=>`<option value="${co.id}">${esc(co.name)}</option>`).join('')}</select></div><div class="fr"><label>Chọn sinh viên</label><select id="stat-sv-sel" onchange="renderSVDetail()" style="max-width:300px"><option value="">— Chọn SV —</option>${D.students.map(s=>`<option value="${s.code}">${s.name} (${s.code})</option>`).join('')}</select></div></div><div id="stat-sv-detail"></div>`;
+}
+function updateStatSvList(){
+  const cid=$('stat-sv-course')?.value||'';
+  let list=D.students;if(cid)list=list.filter(s=>(s.courseIds||[]).includes(cid));
+  $('stat-sv-sel').innerHTML='<option value="">— Chọn SV —</option>'+list.map(s=>`<option value="${s.code}">${s.name} (${s.code})</option>`).join('');
+  $('stat-sv-detail').innerHTML='';
 }
 function renderSVDetail(){
   const code=$('stat-sv-sel')?.value;const c=$('stat-sv-detail');if(!code){c.innerHTML='';return}
   const sv=D.students.find(s=>s.code===code);if(!sv){c.innerHTML='';return}
-  // Per course attendance
-  let html='';
+
+  // Overall stats across all courses
+  let totalPresent=0,totalSessions=0;
   (sv.courseIds||[]).forEach(cid=>{
-    const ses=D.sessions.filter(s=>s.courseId===cid);let present=0;
-    const rows=ses.map((s,i)=>{const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)present++;
-      return `<tr><td>Buổi ${i+1}</td><td style="font-size:.76rem">${fmD(s.startTime)}</td><td>${here?'<span class="badge bdg">✅</span>':'<span class="badge bdr">❌</span>'}</td></tr>`}).join('');
-    const pct=ses.length>0?Math.round(present/ses.length*100):0;
-    html+=`<div class="card"><div class="ct">📚 ${esc(cName(cid))} <span style="font-size:.72rem;font-weight:400;color:${pct>=80?'var(--green)':'var(--red)'}">${present}/${ses.length} (${pct}%)</span></div><div class="tw"><table><thead><tr><th>Buổi</th><th>Thời gian</th><th>TT</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    const ses=D.sessions.filter(s=>s.courseId===cid);
+    ses.forEach(s=>{totalSessions++;const a=D.attendance[s.id]||{};if(a[sv.code])totalPresent++});
   });
+  const overallPct=totalSessions>0?Math.round(totalPresent/totalSessions*100):0;
+
+  let html=`<div class="card"><div class="ct">👤 ${esc(sv.name)} — ${esc(sv.code)}</div>
+    <div class="sg" style="margin-bottom:14px">
+      <div class="sc"><div class="v" style="color:${overallPct>=80?'var(--green)':overallPct>=50?'var(--orange)':'var(--red)'}">${overallPct}%</div><div class="l">Tổng chuyên cần</div></div>
+      <div class="sc"><div class="v vg">${totalPresent}</div><div class="l">Buổi có mặt</div></div>
+      <div class="sc"><div class="v vr">${totalSessions-totalPresent}</div><div class="l">Buổi vắng</div></div>
+      <div class="sc"><div class="v vb">${totalSessions}</div><div class="l">Tổng buổi</div></div>
+    </div>`;
+
+  // Per course breakdown
+  (sv.courseIds||[]).forEach(cid=>{
+    const ses=D.sessions.filter(s=>s.courseId===cid).sort((a,b)=>a.startTime-b.startTime);
+    if(!ses.length)return;
+    let present=0;
+    const rows=ses.map((s,i)=>{
+      const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)present++;
+      return `<tr><td>Buổi ${i+1}</td><td style="font-size:.76rem">${fmD(s.startTime)}</td><td>${here?'<span class="badge bdg">✅ Có mặt</span>':'<span class="badge bdr">❌ Vắng</span>'}</td></tr>`;
+    }).join('');
+    const pct=ses.length>0?Math.round(present/ses.length*100):0;
+    html+=`<div style="margin-top:12px"><div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📚 ${esc(cName(cid))} — <span style="color:${pct>=80?'var(--green)':pct>=50?'var(--orange)':'var(--red)'}">${present}/${ses.length} (${pct}%)</span></div>
+      <div class="tw"><table><thead><tr><th>Buổi</th><th>Thời gian</th><th>Trạng thái</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  });
+
   // Groups & thesis
   const grps=D.groups.filter(g=>(g.memberCodes||[]).includes(sv.code));
-  html+=`<div class="card"><div class="ct">👨‍👩‍👧 Nhóm & Đề tài</div>`;
-  if(grps.length){grps.forEach(g=>{const sub=D.thesis.filter(t=>t.groupId===g.id);html+=`<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:.82rem"><strong>${esc(g.name)}</strong> — ${esc(g.topic||'Chưa có đề tài')}<br>${sub.length?'<span class="badge bdg">✅ Đã nộp '+sub.length+' bài</span>':'<span class="badge bdr">❌ Chưa nộp</span>'}</div>`})}
+  html+=`<div style="margin-top:16px"><div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📄 Nhóm & Khóa luận</div>`;
+  if(grps.length){grps.forEach(g=>{const sub=D.thesis.filter(t=>t.groupId===g.id);html+=`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.82rem"><strong>${esc(g.name)}</strong> — ${esc(g.topic||'Chưa có đề tài')}<br>${sub.length?'<span class="badge bdg">✅ Đã nộp '+sub.length+' bài</span>':'<span class="badge bdr">❌ Chưa nộp</span>'}</div>`})}
   else html+='<p style="color:var(--dim);font-size:.82rem">Chưa thuộc nhóm nào</p>';
-  html+='</div>';
+  html+='</div></div>';
   c.innerHTML=html;
 }
 
