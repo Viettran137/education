@@ -49,7 +49,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 .live-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;animation:pulse 2s infinite}
 .live-badge.on{background:var(--green-lt);color:var(--green)}.live-badge.off{background:var(--bg);color:var(--dim);animation:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-.qr-panel{text-align:center;padding:20px}.qr-panel img{border:3px solid var(--pri);border-radius:16px;padding:8px;background:#fff}
+.qr-panel{text-align:center;padding:20px}
 .qr-code-text{font-family:'JetBrains Mono',monospace;font-size:2rem;font-weight:800;color:var(--pri);letter-spacing:4px;margin-top:10px}
 .drill{cursor:pointer;transition:background .15s;border-radius:8px;padding:10px 14px;margin-bottom:6px}.drill:hover{background:var(--pri-light)}
 .chip{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.68rem;font-weight:600;margin:1px;background:var(--blue-lt);color:var(--blue)}
@@ -118,7 +118,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
       <span style="font-size:.76rem;color:var(--dim)" id="att-status">Chưa bắt đầu</span>
     </div>
     <div class="qr-panel hidden" id="qr-panel">
-      <img id="qr-img" src="" alt="QR" width="250" height="250">
+      <div id="qr-container" style="display:inline-block;padding:12px;background:#fff;border:3px solid var(--pri);border-radius:16px"></div>
       <div class="qr-code-text" id="qr-code-text">------</div>
       <div style="font-size:.82rem;color:var(--dim);margin-top:6px">QR đổi mã sau: <strong id="qr-cd">30</strong>s</div>
       <div style="font-size:1rem;font-weight:700;color:var(--green);margin-top:10px" id="qr-count">0 SV đã điểm danh</div>
@@ -200,6 +200,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 // ===== CONFIG =====
 const SK='educheck2',PH='037a12dcc822bcef538f37c8911dc51b58f56d723e0b5f26263c40af6de6249b';
@@ -382,12 +383,15 @@ function startAtt(){
   if(fbDb){fbDb.ref('attendance/'+sid).on('value',snap=>{const d=snap.val()||{};D.attendance[sid]=d;localStorage.setItem(SK,JSON.stringify(D));$('qr-count').textContent=Object.keys(d).length+' SV đã điểm danh'})}
 }
 
+let qrInstance=null;
 function rotateQR(sid){
   curCode=genCode();qrCD=30;
   const s=D.sessions.find(s=>s.id===sid);if(s){s.codes.push({code:curCode,time:Date.now()});save()}
-  // Google Charts QR API — free, no library needed
-  const qrData=encodeURIComponent(JSON.stringify({s:sid,c:curCode,t:Date.now()}));
-  $('qr-img').src='https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl='+qrData+'&choe=UTF-8';
+  const qrData=JSON.stringify({s:sid,c:curCode,t:Date.now()});
+  // QRCode.js — client-side, no external API
+  const container=$('qr-container');
+  if(qrInstance){qrInstance.clear();qrInstance.makeCode(qrData)}
+  else{container.innerHTML='';qrInstance=new QRCode(container,{text:qrData,width:250,height:250,colorDark:'#4f46e5',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}
   $('qr-code-text').textContent=curCode;
   if(fbDb)fbDb.ref('activeSession').set({sessionId:sid,code:curCode,courseId:$('att-course').value,expires:Date.now()+35000});
 }
@@ -395,7 +399,7 @@ function rotateQR(sid){
 function stopAtt(){
   clearInterval(attInt);attInt=null;
   const s=D.sessions.find(s=>s.id===attSID);if(s)s.endTime=Date.now();
-  if(fbDb)fbDb.ref('activeSession').remove();save();attSID=null;
+  if(fbDb)fbDb.ref('activeSession').remove();save();attSID=null;qrInstance=null;
   $('qr-panel').classList.add('hidden');$('att-start').classList.remove('hidden');$('att-stop').classList.add('hidden');
   $('att-status').textContent='✅ Đã dừng';$('live-badge').className='live-badge off';$('live-badge').textContent='⚪ TẮT';
   renderAttHist();toast('✅ Đã dừng');
