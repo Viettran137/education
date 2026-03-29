@@ -367,12 +367,33 @@ function renderGroups(){
 let attInt=null,attSID=null,curCode='',qrCD=30;
 function genCode(){return Math.random().toString(36).slice(2,8).toUpperCase()}
 
+function getTodayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+
 function startAtt(){
   const courseId=$('att-course').value;if(!courseId){toast('⚠️ Chọn môn');return}
   const svCount=D.students.filter(s=>(s.courseIds||[]).includes(courseId)).length;
   if(!svCount){toast('⚠️ Chưa có SV trong môn này');return}
-  const sid=uid();attSID=sid;if(!D.attendance)D.attendance={};
-  D.sessions.push({id:sid,courseId,startTime:Date.now(),endTime:null,codes:[]});D.attendance[sid]={};save();
+  if(!D.attendance)D.attendance={};
+
+  // Check if session already exists for today + this course
+  const todayStr=getTodayStr();
+  let existing=D.sessions.find(s=>s.courseId===courseId&&s.startTime&&new Date(s.startTime).toISOString().slice(0,10)===todayStr);
+  
+  let sid;
+  if(existing){
+    // Reuse existing session
+    sid=existing.id;
+    existing.endTime=null; // re-open
+    if(!D.attendance[sid])D.attendance[sid]={};
+    toast('📋 Tiếp tục buổi điểm danh hôm nay');
+  }else{
+    // Create new session
+    sid=uid();
+    D.sessions.push({id:sid,courseId,startTime:Date.now(),endTime:null,codes:[]});
+    D.attendance[sid]={};
+  }
+  attSID=sid;save();
+
   // UI
   $('qr-panel').classList.remove('hidden');$('att-start').classList.add('hidden');$('att-stop').classList.remove('hidden');
   $('att-status').textContent='🔴 Đang điểm danh...';$('live-badge').className='live-badge on';$('live-badge').textContent='🔴 LIVE';
