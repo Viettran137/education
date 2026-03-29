@@ -124,7 +124,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
       <div style="font-size:1rem;font-weight:700;color:var(--green);margin-top:10px" id="qr-count">0 SV đã điểm danh</div>
     </div>
   </div>
-  <div class="card"><div class="ch"><div class="ct" style="margin:0">📅 Lịch sử</div><select id="att-hc" onchange="renderAttHist()" style="min-width:180px"></select></div><div id="att-hist"></div></div>
+  <div class="card"><div class="ch"><div class="ct" style="margin:0">📅 Lịch sử</div><div style="display:flex;gap:6px"><button class="btn bo bs" onclick="showManualAttModal()">✏️ Cập nhật thủ công</button><select id="att-hc" onchange="renderAttHist()" style="min-width:180px"></select></div></div><div id="att-hist"></div></div>
 </div>
 
 <!-- ===== THESIS ===== -->
@@ -193,6 +193,15 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
   <div class="fr"><label>Chọn file (.xlsx)</label><input type="file" id="imp-file" accept=".xlsx,.xls,.csv"></div>
   <div id="imp-preview" style="margin-top:10px;max-height:200px;overflow-y:auto;font-size:.78rem"></div>
   <div style="display:flex;gap:8px;margin-top:12px"><button class="btn bo" onclick="$('imp-modal').classList.add('hidden')" style="flex:1">Huỷ</button><button class="btn bp" onclick="doImport()" style="flex:1" id="imp-btn" disabled>📥 Import</button></div>
+</div></div>
+
+<!-- Manual Attendance Modal -->
+<div class="modal-bg hidden" id="ma-modal"><div class="modal" style="max-width:620px"><h3>✏️ Cập nhật điểm danh thủ công</h3>
+  <p style="color:var(--dim);font-size:.82rem;margin-bottom:12px">Bổ sung buổi cũ hoặc chỉnh sửa điểm danh.</p>
+  <div class="fg"><div class="fr"><label>Lớp/Môn</label><select id="ma-course" onchange="loadMaSvList()"></select></div><div class="fr"><label>Ngày</label><input type="date" id="ma-date"></div></div>
+  <div id="ma-sv-list" style="max-height:350px;overflow-y:auto;margin:10px 0;border:1px solid var(--border);border-radius:10px;padding:6px"></div>
+  <div style="display:flex;gap:6px;margin-bottom:10px"><button class="btn bx bo" onclick="maCheckAll(true)">Chọn tất cả</button><button class="btn bx bo" onclick="maCheckAll(false)">Bỏ chọn</button></div>
+  <div style="display:flex;gap:8px"><button class="btn bo" onclick="$('ma-modal').classList.add('hidden')" style="flex:1">Huỷ</button><button class="btn bp" onclick="saveMaAtt()" style="flex:1">💾 Lưu</button></div>
 </div></div>
 
 <!-- Firebase + SheetJS -->
@@ -408,7 +417,7 @@ let qrInstance=null;
 function rotateQR(sid){
   curCode=genCode();qrCD=30;
   const s=D.sessions.find(s=>s.id===sid);if(s){s.codes.push({code:curCode,time:Date.now()});save()}
-  const qrData=JSON.stringify({s:sid,c:curCode,t:Date.now()});
+  const qrData=JSON.stringify({s:sid,c:curCode,t:Date.now(),cid:$('att-course').value});
   // QRCode.js — client-side, no external API
   const container=$('qr-container');
   if(qrInstance){qrInstance.clear();qrInstance.makeCode(qrData)}
@@ -502,6 +511,43 @@ function drillSession(sid){
   $('att-hist').innerHTML=html;
 }
 
+// ===== MANUAL ATTENDANCE =====
+function showManualAttModal(){
+  const opts=D.courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('ma-course').innerHTML=opts;$('ma-date').value=getTodayStr();
+  loadMaSvList();$('ma-modal').classList.remove('hidden');
+}
+function loadMaSvList(){
+  const cid=$('ma-course').value,dateStr=$('ma-date').value;
+  const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
+  // Find existing session for this date+course
+  const existingSes=D.sessions.find(s=>s.courseId===cid&&s.startTime&&new Date(s.startTime).toISOString().slice(0,10)===dateStr);
+  const existingAtt=existingSes?D.attendance[existingSes.id]||{}:{};
+  $('ma-sv-list').innerHTML=svs.length?svs.map(sv=>{
+    const checked=!!existingAtt[sv.code];
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border)"><input type="checkbox" class="ma-cb" value="${sv.code}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--pri)"><span><strong>${esc(sv.code)}</strong> — ${esc(sv.name)}</span></label>`;
+  }).join(''):'<p style="color:var(--dim);font-size:.82rem;padding:12px">Không có SV trong lớp này</p>';
+}
+function maCheckAll(v){document.querySelectorAll('.ma-cb').forEach(cb=>cb.checked=v)}
+function saveMaAtt(){
+  const cid=$('ma-course').value,dateStr=$('ma-date').value;
+  if(!cid||!dateStr){toast('⚠️ Chọn lớp và ngày');return}
+  // Find or create session
+  let ses=D.sessions.find(s=>s.courseId===cid&&s.startTime&&new Date(s.startTime).toISOString().slice(0,10)===dateStr);
+  if(!ses){const d=new Date(dateStr+'T08:00:00');ses={id:uid(),courseId:cid,startTime:d.getTime(),endTime:d.getTime(),codes:[]};D.sessions.push(ses)}
+  if(!D.attendance)D.attendance={};if(!D.attendance[ses.id])D.attendance[ses.id]={};
+  // Clear existing then set checked ones
+  D.attendance[ses.id]={};
+  document.querySelectorAll('.ma-cb:checked').forEach(cb=>{
+    const code=cb.value;const sv=D.students.find(s=>s.code===code);
+    D.attendance[ses.id][code]={code,name:sv?.name||code,time:ses.startTime,qrCode:'MANUAL'};
+  });
+  if(fbDb)fbDb.ref('attendance/'+ses.id).set(D.attendance[ses.id]);
+  save();$('ma-modal').classList.add('hidden');renderAttHist();renderAll();
+  const cnt=Object.keys(D.attendance[ses.id]).length;
+  toast(`✅ Đã lưu ${cnt} SV điểm danh ngày ${dateStr}`);
+}
+
 // ===== THESIS =====
 function renderThesis(){
   const tb=$('thesis-tb'),emp=$('thesis-emp');
@@ -532,34 +578,35 @@ function renderStatCourse(c){
   if(!D.courses.length){c.innerHTML='<p style="color:var(--dim)">Chưa có môn</p>';return}
   c.innerHTML=D.courses.map(course=>{
     const ses=D.sessions.filter(s=>s.courseId===course.id).sort((a,b)=>a.startTime-b.startTime);
-    const svs=D.students.filter(s=>(s.courseIds||[]).includes(course.id));
+    const svs=D.students.filter(s=>(s.courseIds||[]).includes(course.id)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     if(!ses.length)return `<div class="card"><div class="ct">📚 ${esc(course.name)} <span style="font-size:.72rem;color:var(--dim);font-weight:400">· ${svs.length} SV · Chưa điểm danh</span></div></div>`;
 
-    // Cumulative summary per student
     const svStats=svs.map(sv=>{
-      let present=0;
-      ses.forEach(s=>{const a=D.attendance[s.id]||{};if(a[sv.code])present++});
-      return{code:sv.code,name:sv.name,present,total:ses.length,pct:ses.length>0?Math.round(present/ses.length*100):0};
-    }).sort((a,b)=>a.pct-b.pct); // worst attendance first
+      let present=0;const marks=[];
+      ses.forEach(s=>{const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)present++;marks.push(here)});
+      return{code:sv.code,name:sv.name,present,total:ses.length,pct:ses.length>0?Math.round(present/ses.length*100):0,marks};
+    });
 
     const avgPct=svStats.length>0?Math.round(svStats.reduce((s,v)=>s+v.pct,0)/svStats.length):0;
-    const goodCount=svStats.filter(s=>s.pct>=80).length;
     const warnCount=svStats.filter(s=>s.pct<50).length;
 
-    // Per-session summary row
+    // Session summary
     const sessionRows=ses.map((s,i)=>{
       const att=D.attendance[s.id]||{};const cnt=Object.keys(att).length;const pct=svs.length>0?Math.round(cnt/svs.length*100):0;
       return `<div class="drill" onclick="drillSessionStat('${s.id}')"><div style="display:flex;justify-content:space-between;font-size:.82rem"><span>Buổi ${i+1} — ${fmD(s.startTime)}</span><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${svs.length} (${pct}%)</span></div></div>`;
     }).join('');
 
-    // Student cumulative table
-    const svTable=`<div class="tw" style="margin-top:12px"><table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Có mặt</th><th>Vắng</th><th>Tỷ lệ</th><th>Đánh giá</th></tr></thead><tbody>${
-      svStats.map(sv=>{
-        const absent=sv.total-sv.present;
-        const evalBadge=sv.pct>=80?'<span class="badge bdg">Tốt</span>':sv.pct>=50?'<span class="badge bdo">Cần cải thiện</span>':'<span class="badge bdr">Cảnh báo</span>';
-        return `<tr><td><strong>${esc(sv.code)}</strong></td><td>${esc(sv.name)}</td><td style="color:var(--green);font-weight:600">${sv.present}</td><td style="color:var(--red);font-weight:600">${absent}</td><td><strong style="color:${sv.pct>=80?'var(--green)':sv.pct>=50?'var(--orange)':'var(--red)'}">${sv.pct}%</strong></td><td>${evalBadge}</td></tr>`;
-      }).join('')
-    }</tbody></table></div>`;
+    // Date labels for matrix columns
+    const dateCols=ses.map((s,i)=>{const d=new Date(s.startTime);return`<th style="font-size:.6rem;writing-mode:vertical-lr;text-align:center;padding:4px 2px;min-width:28px" title="${fmD(s.startTime)}">B${i+1}<br>${d.getDate()}/${d.getMonth()+1}</th>`}).join('');
+
+    // Full matrix table: SV rows × session columns
+    const matrixRows=svStats.map(sv=>{
+      const cells=sv.marks.map(here=>`<td style="text-align:center;padding:3px;font-size:.75rem">${here?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}</td>`).join('');
+      const evalBadge=sv.pct>=80?'<span class="badge bdg">Tốt</span>':sv.pct>=50?'<span class="badge bdo">TB</span>':'<span class="badge bdr">⚠️</span>';
+      return `<tr><td style="font-size:.76rem"><strong>${esc(sv.code)}</strong></td><td style="font-size:.76rem;white-space:nowrap">${esc(sv.name)}</td>${cells}<td style="text-align:center;font-weight:700;color:${sv.pct>=80?'var(--green)':sv.pct>=50?'var(--orange)':'var(--red)'}">${sv.pct}%</td><td style="text-align:center">${evalBadge}</td></tr>`;
+    }).join('');
+
+    const matrix=`<div class="tw" style="margin-top:12px"><table style="font-size:.76rem"><thead><tr><th>Mã SV</th><th>Họ tên</th>${dateCols}<th style="min-width:45px">%</th><th>ĐG</th></tr></thead><tbody>${matrixRows}</tbody></table></div>`;
 
     return `<div class="card">
       <div class="ct">📚 ${esc(course.name)}</div>
@@ -569,9 +616,10 @@ function renderStatCourse(c){
         <div class="sc"><div class="v" style="color:${avgPct>=80?'var(--green)':avgPct>=50?'var(--orange)':'var(--red)'}">${avgPct}%</div><div class="l">TB chuyên cần</div></div>
         <div class="sc"><div class="v vr">${warnCount}</div><div class="l">SV cảnh báo</div></div>
       </div>
-      <details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--pri);padding:8px 0">📅 Chi tiết từng buổi (${ses.length} buổi)</summary>${sessionRows}</details>
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:8px">👥 Chuyên cần cộng dồn — ${svs.length} SV × ${ses.length} buổi</div>
-      ${svTable}
+      <details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--pri);padding:8px 0">📅 Chi tiết từng buổi (${ses.length} buổi) — bấm để mở</summary>${sessionRows}</details>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">📊 Bảng chuyên cần — ${svs.length} SV × ${ses.length} buổi</div>
+      <p style="font-size:.72rem;color:var(--dim);margin-bottom:8px">✓ = có mặt · ✗ = vắng · Cột B1, B2... = buổi theo thứ tự thời gian</p>
+      ${matrix}
     </div>`;
   }).join('');
 }
