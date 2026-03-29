@@ -240,6 +240,15 @@ async function submitAttendance(sessionId,code){
   if(!session||session.sessionId!==sessionId){showAttError('⚠️ Phiên điểm danh đã đóng');return}
   if(session.code!==code){showAttError('⚠️ Mã đã đổi. Quét lại QR mới');return}
 
+  // Verify student belongs to this course
+  if(session.courseId){
+    const svSnap=await db.ref('educheck2/students').once('value');
+    const students=svSnap.val()?Object.values(svSnap.val()):[];
+    const sv=students.find(s=>s.code===studentCode);
+    if(sv&&!(sv.courseIds||[]).includes(session.courseId)){
+      showAttError('⚠️ Bạn không thuộc lớp đang điểm danh. Liên hệ giảng viên.');return}
+  }
+
   // Check if already checked in
   const existing=await db.ref('attendance/'+sessionId+'/'+studentCode).once('value');
   if(existing.val()){
