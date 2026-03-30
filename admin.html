@@ -89,9 +89,22 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 <!-- ===== STUDENTS ===== -->
 <div id="panel-students" class="panel">
   <div class="ch"><div class="ct" style="margin:0">👥 Sinh viên</div>
-    <div style="display:flex;gap:6px"><button class="btn bp bs" onclick="showSvModal()">+ Thêm SV</button><button class="btn bo bs" onclick="showImportModal('student')">📥 Import Excel</button><button class="btn bo bs" onclick="exportStudents()">📤 Xuất Excel</button><button class="btn bo bs" onclick="downloadTemplate('student')">📋 Tải mẫu</button></div></div>
-  <div class="card" style="padding:10px 14px;margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="text" id="sv-search" placeholder="🔍 Tìm SV..." oninput="renderSv()" style="max-width:220px"><select id="sv-fc" onchange="renderSv()" style="max-width:180px"><option value="">Tất cả môn</option></select></div></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Mã SV</th><th>Họ & chữ lót</th><th>Tên</th><th>Ngày sinh</th><th>Email</th><th>SĐT</th><th>Lớp</th><th>Môn học</th><th>Ghi chú</th><th></th></tr></thead><tbody id="sv-tb"></tbody></table></div><div class="empty" id="sv-emp"><div class="ei">👥</div><p>Chưa có SV</p></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bp bs" onclick="showSvModal()">+ Thêm SV</button><button class="btn bo bs" onclick="showImportModal('student')">📥 Import</button><button class="btn bo bs" onclick="exportStudents()">📤 Xuất</button><button class="btn bo bs" onclick="downloadTemplate('student')">📋 Mẫu</button></div></div>
+  <div class="card" style="padding:10px 14px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="sv-search" placeholder="🔍 Tìm SV..." oninput="renderSv()" style="max-width:200px">
+      <select id="sv-fc" onchange="updateSvClassFilter();renderSv()" style="max-width:160px"><option value="">Tất cả môn</option></select>
+      <select id="sv-lc" onchange="renderSv()" style="max-width:140px"><option value="">Tất cả lớp</option></select>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <div style="font-size:.76rem;color:var(--dim)" id="sv-count"></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:4px;margin:0"><input type="checkbox" id="sv-check-all" onchange="svToggleAll()" style="width:15px;height:15px;accent-color:var(--pri)"> Chọn tất cả</label>
+        <button class="btn bred bx" id="sv-del-sel" onclick="svDeleteSelected()" style="display:none">🗑️ Xoá đã chọn</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr><th style="width:30px"><input type="checkbox" id="sv-th-check" onchange="svToggleAll()" style="width:15px;height:15px;accent-color:var(--pri)"></th><th>Mã SV</th><th>Họ & chữ lót</th><th>Tên</th><th>Ngày sinh</th><th>Email</th><th>SĐT</th><th>Lớp</th><th>Môn học</th><th>Ghi chú</th><th></th></tr></thead><tbody id="sv-tb"></tbody></table></div><div class="empty" id="sv-emp"><div class="ei">👥</div><p>Chưa có SV</p></div></div>
 </div>
 
 <!-- ===== COURSES ===== -->
@@ -395,18 +408,51 @@ function saveSv(){
   save();$('sv-modal').classList.add('hidden');renderSv();toast('✅ Đã lưu');
 }
 function delSv(id){if(!confirm('Xoá?'))return;D.students=D.students.filter(s=>s.id!==id);save();renderSv()}
+function updateSvClassFilter(){
+  const fc=$('sv-fc')?.value||'';
+  const sel=$('sv-lc');if(!sel)return;
+  const prev=sel.value;
+  if(!fc){sel.innerHTML='<option value="">Tất cả lớp</option>';if(prev)sel.value=prev;return}
+  const svs=D.students.filter(s=>(s.courseIds||[]).includes(fc));
+  const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
+  const classes=Object.entries(classMap).sort((a,b)=>b[1]-a[1]);
+  sel.innerHTML='<option value="">Tất cả lớp</option>'+classes.map(([n,c])=>`<option value="${esc(n)}">${esc(n)} (${c})</option>`).join('');
+  if(prev)sel.value=prev;
+}
 function renderSv(){
-  const q=($('sv-search')?.value||'').toLowerCase(),fc=$('sv-fc')?.value||'';
-  let list=D.students;if(q)list=list.filter(s=>((s.name||'')+' '+s.code+' '+s.email).toLowerCase().includes(q));
+  const q=($('sv-search')?.value||'').toLowerCase(),fc=$('sv-fc')?.value||'',lc=$('sv-lc')?.value||'';
+  let list=D.students;
+  if(q)list=list.filter(s=>((s.name||'')+' '+s.code+' '+(s.email||'')).toLowerCase().includes(q));
   if(fc)list=list.filter(s=>(s.courseIds||[]).includes(fc));
+  if(lc)list=list.filter(s=>s.batch===lc);
   const tb=$('sv-tb'),emp=$('sv-emp');
-  if(!list.length){tb.innerHTML='';emp.style.display='';return}emp.style.display='none';
+  $('sv-count').textContent=`${list.length}/${D.students.length} sinh viên`;
+  if(!list.length){tb.innerHTML='';emp.style.display='';$('sv-del-sel').style.display='none';return}emp.style.display='none';
   tb.innerHTML=list.map(s=>{
     const ln=s.lastName||splitName(s.name).lastName;
     const fn=s.firstName||splitName(s.name).firstName;
     const chips=(s.courseIds||[]).map(id=>`<span class="chip">${esc(cName(id))}</span>`).join('');
-    return `<tr><td><strong>${esc(s.code)}</strong></td><td>${esc(ln)}</td><td><strong>${esc(fn)}</strong></td><td style="font-size:.76rem">${esc(s.dob||'')}</td><td style="font-size:.76rem">${esc(s.email||'')}</td><td style="font-size:.76rem">${esc(s.phone||'')}</td><td style="font-size:.76rem">${esc(s.batch||'')}</td><td>${chips||'—'}</td><td style="font-size:.76rem;color:var(--dim)">${esc(s.note||'')}</td><td><div style="display:flex;gap:3px"><button class="btn bx bo" onclick="showSvModal('${s.id}')">✏️</button><button class="btn bx bo" onclick="delSv('${s.id}')" style="color:var(--red)">🗑️</button></div></td></tr>`;
+    return `<tr><td><input type="checkbox" class="sv-cb" value="${s.id}" onchange="svCheckChanged()" style="width:15px;height:15px;accent-color:var(--pri)"></td><td><strong>${esc(s.code)}</strong></td><td>${esc(ln)}</td><td><strong>${esc(fn)}</strong></td><td style="font-size:.76rem">${esc(s.dob||'')}</td><td style="font-size:.76rem">${esc(s.email||'')}</td><td style="font-size:.76rem">${esc(s.phone||'')}</td><td style="font-size:.76rem">${esc(s.batch||'')}</td><td>${chips||'—'}</td><td style="font-size:.76rem;color:var(--dim)">${esc(s.note||'')}</td><td><div style="display:flex;gap:3px"><button class="btn bx bo" onclick="showSvModal('${s.id}')">✏️</button><button class="btn bx bo" onclick="delSv('${s.id}')" style="color:var(--red)">🗑️</button></div></td></tr>`;
   }).join('');
+}
+function svToggleAll(){
+  const all=$('sv-th-check')?.checked||$('sv-check-all')?.checked||false;
+  document.querySelectorAll('.sv-cb').forEach(cb=>cb.checked=all);
+  if($('sv-th-check'))$('sv-th-check').checked=all;
+  if($('sv-check-all'))$('sv-check-all').checked=all;
+  svCheckChanged();
+}
+function svCheckChanged(){
+  const checked=document.querySelectorAll('.sv-cb:checked').length;
+  $('sv-del-sel').style.display=checked>0?'':'none';
+  $('sv-del-sel').textContent=`🗑️ Xoá ${checked} SV`;
+}
+function svDeleteSelected(){
+  const ids=Array.from(document.querySelectorAll('.sv-cb:checked')).map(cb=>cb.value);
+  if(!ids.length)return;
+  if(!confirm(`Xoá ${ids.length} sinh viên đã chọn?`))return;
+  D.students=D.students.filter(s=>!ids.includes(s.id));
+  save();renderSv();toast(`🗑️ Đã xoá ${ids.length} SV`);
 }
 
 // ===== GROUPS =====
