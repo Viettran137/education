@@ -104,7 +104,17 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 <div id="panel-groups" class="panel">
   <div class="ch"><div class="ct" style="margin:0">👨‍👩‍👧 Nhóm & Đề tài</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bp bs" onclick="showGroupModal()">+ Thêm nhóm</button><button class="btn bo bs" onclick="showImportModal('nckh')">📥 Import NCKH (cả khoa)</button><button class="btn bo bs" onclick="showImportModal('group')">📥 Import nhóm</button><button class="btn bo bs" onclick="exportGroups()">📤 Xuất</button><button class="btn bo bs" onclick="downloadTemplate('nckh')">📋 Mẫu NCKH</button><button class="btn bo bs" onclick="downloadTemplate('group')">📋 Mẫu nhóm</button></div></div>
-  <div class="card" style="padding:10px 14px;margin-bottom:10px"><select id="grp-fc" onchange="renderGroups()" style="max-width:200px"><option value="">Tất cả môn</option></select></div>
+  <div class="card" style="padding:12px 14px;margin-bottom:10px">
+    <div class="fg" style="gap:8px">
+      <div class="fr" style="margin:0"><input type="text" id="grp-search" placeholder="🔍 Tìm SV, đề tài, GVHD..." oninput="renderGroups()" style="padding:8px 12px"></div>
+      <div class="fr" style="margin:0;display:flex;gap:6px">
+        <select id="grp-fc" onchange="renderGroups()" style="flex:1"><option value="">Tất cả môn</option></select>
+        <select id="grp-gvhd" onchange="renderGroups()" style="flex:1"><option value="">Tất cả GVHD</option></select>
+        <select id="grp-status" onchange="renderGroups()" style="width:120px"><option value="">Tất cả</option><option value="submitted">✅ Đã nộp</option><option value="missing">❌ Chưa nộp</option></select>
+      </div>
+    </div>
+    <div style="margin-top:6px;font-size:.76rem;color:var(--dim)" id="grp-count"></div>
+  </div>
   <div id="group-list"></div><div class="empty" id="grp-emp"><div class="ei">👨‍👩‍👧</div><p>Chưa có nhóm</p></div>
 </div>
 
@@ -417,10 +427,38 @@ function saveGroup(){
   save();$('grp-modal').classList.add('hidden');renderGroups();toast('✅ Đã lưu');
 }
 function delGroup(id){if(!confirm('Xoá nhóm?'))return;D.groups=D.groups.filter(g=>g.id!==id);save();renderGroups()}
+function updateGvhdFilter(){
+  const gvhds=new Set(D.groups.map(g=>g.gvhd).filter(Boolean));
+  const sel=$('grp-gvhd');if(!sel)return;
+  const prev=sel.value;
+  sel.innerHTML='<option value="">Tất cả GVHD ('+gvhds.size+')</option>'+[...gvhds].sort().map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if(prev)sel.value=prev;
+}
 function renderGroups(){
+  updateGvhdFilter();
   const fc=$('grp-fc')?.value||'';
-  let list=D.groups;if(fc)list=list.filter(g=>g.courseId===fc);
+  const fgvhd=$('grp-gvhd')?.value||'';
+  const fstatus=$('grp-status')?.value||'';
+  const q=($('grp-search')?.value||'').toLowerCase();
+  let list=D.groups;
+  if(fc)list=list.filter(g=>g.courseId===fc);
+  if(fgvhd)list=list.filter(g=>g.gvhd===fgvhd);
+  if(fstatus==='submitted')list=list.filter(g=>D.thesis.some(t=>t.groupId===g.id));
+  if(fstatus==='missing')list=list.filter(g=>!D.thesis.some(t=>t.groupId===g.id));
+  if(q)list=list.filter(g=>{
+    const topic=(g.topic||'').toLowerCase();
+    const gvhd=(g.gvhd||'').toLowerCase();
+    const name=(g.name||'').toLowerCase();
+    const memberMatch=(g.memberCodes||[]).some(code=>{
+      const sv=D.students.find(s=>s.code===code);
+      return code.toLowerCase().includes(q)||(sv?.name||'').toLowerCase().includes(q);
+    });
+    return topic.includes(q)||gvhd.includes(q)||name.includes(q)||memberMatch;
+  });
   const el=$('group-list'),emp=$('grp-emp');
+  const totalMembers=list.reduce((s,g)=>(s+(g.memberCodes||[]).length),0);
+  const submittedCount=list.filter(g=>D.thesis.some(t=>t.groupId===g.id)).length;
+  $('grp-count').textContent=`Hiển thị ${list.length}/${D.groups.length} nhóm · ${totalMembers} SV · ${submittedCount} đã nộp · ${list.length-submittedCount} chưa nộp`;
   if(!list.length){el.innerHTML='';emp.style.display='';return}emp.style.display='none';
   el.innerHTML=list.map(g=>{
     const submitted=D.thesis.filter(t=>t.groupId===g.id);
