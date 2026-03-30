@@ -252,7 +252,15 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 const SK='educheck2',PH='037a12dcc822bcef538f37c8911dc51b58f56d723e0b5f26263c40af6de6249b';
 const FB_CFG={"apiKey":"AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE","authDomain":"education-df9a0.firebaseapp.com","databaseURL":"https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app","projectId":"education-df9a0","storageBucket":"education-df9a0.firebasestorage.app","messagingSenderId":"770840279264","appId":"1:770840279264:web:fba64d37c635edb3967885"};
 function dD(){return{pw:PH,courses:[],students:[],groups:[],sessions:[],attendance:{},thesis:[]}}
-function load(){try{const r=localStorage.getItem(SK);return r?JSON.parse(r):dD()}catch{return dD()}}
+function load(){
+  try{const r=localStorage.getItem(SK);const d=r?JSON.parse(r):dD();normalizeData(d);return d}catch{return dD()}
+}
+function normalizeData(d){
+  // Ensure all codes/IDs are strings
+  (d.students||[]).forEach(s=>{s.code=String(s.code||'').trim();s.courseIds=(s.courseIds||[]).map(id=>String(id))});
+  (d.groups||[]).forEach(g=>{g.leaderCode=String(g.leaderCode||'').trim();g.memberCodes=(g.memberCodes||[]).map(c=>String(c).trim());g.courseId=String(g.courseId||'')});
+  (d.sessions||[]).forEach(s=>{s.courseId=String(s.courseId||'')});
+}
 let D=load();
 function save(){D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB()}
 const $=id=>document.getElementById(id);
@@ -263,7 +271,7 @@ function nCode(v){return String(v||'').trim();}
 function findSv(code){const c=nCode(code);return D.students.find(s=>nCode(s.code)===c)}
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3000)}
 function fmD(ts){if(!ts)return'';const d=new Date(ts);return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
-function cName(id){const c=D.courses.find(c=>c.id===id);return c?c.name:'?'}
+function cName(id){if(!id)return'—';const c=D.courses.find(c=>c.id===id);return c?c.name:'(Môn đã xoá)'}
 
 // Convert Excel serial date (e.g. 38976) to dd/mm/yyyy
 function parseExcelDate(v){
@@ -317,7 +325,7 @@ function getAttSelectedClasses(){
 let fbDb=null,fbSt=null;
 function initFB(){
   try{firebase.initializeApp(FB_CFG);fbDb=firebase.database();fbSt=firebase.storage();
-    fbDb.ref('educheck2').on('value',snap=>{const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;Object.assign(D,r);D.pw=pw;localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
+    fbDb.ref('educheck2').on('value',snap=>{const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;Object.assign(D,r);D.pw=pw;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
     fbDb.ref('thesis').on('value',snap=>{const r=snap.val();if(r){D.thesis=Object.values(r);localStorage.setItem(SK,JSON.stringify(D));renderThesis()}});
     fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D))}});
   }catch(e){console.error('FB error',e)}
@@ -687,7 +695,7 @@ function drillSession(sid){
   const svInCourse=D.students.filter(sv=>(sv.courseIds||[]).includes(s.courseId));
   let html=`<div class="card"><div class="ch"><div class="ct" style="margin:0">📅 ${fmD(s.startTime)} — ${esc(cName(s.courseId))}</div><button class="btn bx bo" onclick="renderAttHist()">← Quay lại</button></div><div class="tw"><table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Trạng thái</th><th>Giờ</th></tr></thead><tbody>`;
   svInCourse.forEach(sv=>{
-    const a=att[sv.code];
+    const a=att[nCode(sv.code)];
     html+=`<tr><td>${esc(sv.code)}</td><td>${esc(sv.name)}</td><td>${a?'<span class="badge bdg">✅ Có mặt</span>':'<span class="badge bdr">❌ Vắng</span>'}</td><td style="font-size:.76rem;color:var(--dim)">${a?fmD(a.time):''}</td></tr>`;
   });
   html+='</tbody></table></div></div>';
@@ -707,7 +715,7 @@ function loadMaSvList(){
   const existingSes=D.sessions.find(s=>s.courseId===cid&&s.startTime&&new Date(s.startTime).toISOString().slice(0,10)===dateStr);
   const existingAtt=existingSes?D.attendance[existingSes.id]||{}:{};
   $('ma-sv-list').innerHTML=svs.length?svs.map(sv=>{
-    const checked=!!existingAtt[sv.code];
+    const checked=!!existingAtt[nCode(sv.code)];
     return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border)"><input type="checkbox" class="ma-cb" value="${sv.code}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--pri)"><span><strong>${esc(sv.code)}</strong> — ${esc(sv.name)}</span></label>`;
   }).join(''):'<p style="color:var(--dim);font-size:.82rem;padding:12px">Không có SV trong lớp này</p>';
 }
@@ -723,7 +731,7 @@ function saveMaAtt(){
   D.attendance[ses.id]={};
   document.querySelectorAll('.ma-cb:checked').forEach(cb=>{
     const code=cb.value;const sv=findSv(code);
-    D.attendance[ses.id][code]={code,name:sv?.name||code,time:ses.startTime,qrCode:'MANUAL'};
+    D.attendance[ses.id][nCode(code)]={code,name:sv?.name||code,time:ses.startTime,qrCode:'MANUAL'};
   });
   if(fbDb)fbDb.ref('attendance/'+ses.id).set(D.attendance[ses.id]);
   save();$('ma-modal').classList.add('hidden');renderAttHist();renderAll();
@@ -805,7 +813,7 @@ function renderStatCourse(c){
 
     const svStats=svs.map(sv=>{
       let present=0;const marks=[];
-      ses.forEach(s=>{const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)present++;marks.push(here)});
+      ses.forEach(s=>{const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)present++;marks.push(here)});
       return{code:sv.code,name:sv.name,present,total:ses.length,pct:ses.length>0?Math.round(present/ses.length*100):0,marks};
     });
 
@@ -851,7 +859,7 @@ function drillSessionStat(sid){
   const att=D.attendance[sid]||{};const svs=D.students.filter(sv=>(sv.courseIds||[]).includes(s.courseId));
   const c=$('stat-content');
   let html=`<button class="btn bo bs" onclick="renderStats()" style="margin-bottom:12px">← Quay lại</button><div class="card"><div class="ct">📅 Buổi ${fmD(s.startTime)} — ${esc(cName(s.courseId))}</div><div class="tw"><table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Trạng thái</th><th>Giờ</th></tr></thead><tbody>`;
-  svs.forEach(sv=>{const a=att[sv.code];html+=`<tr><td>${esc(sv.code)}</td><td>${esc(sv.name)}</td><td>${a?'<span class="badge bdg">✅</span>':'<span class="badge bdr">❌</span>'}</td><td style="font-size:.76rem;color:var(--dim)">${a?fmD(a.time):''}</td></tr>`});
+  svs.forEach(sv=>{const a=att[nCode(sv.code)];html+=`<tr><td>${esc(sv.code)}</td><td>${esc(sv.name)}</td><td>${a?'<span class="badge bdg">✅</span>':'<span class="badge bdr">❌</span>'}</td><td style="font-size:.76rem;color:var(--dim)">${a?fmD(a.time):''}</td></tr>`});
   html+='</tbody></table></div></div>';c.innerHTML=html;
 }
 
@@ -871,7 +879,7 @@ function renderSVDetail(){
   let totalPresent=0,totalSessions=0;
   (sv.courseIds||[]).forEach(cid=>{
     const ses=D.sessions.filter(s=>s.courseId===cid);
-    ses.forEach(s=>{totalSessions++;const a=D.attendance[s.id]||{};if(a[sv.code])totalPresent++});
+    ses.forEach(s=>{totalSessions++;const a=D.attendance[s.id]||{};if(a[nCode(sv.code)])totalPresent++});
   });
   const overallPct=totalSessions>0?Math.round(totalPresent/totalSessions*100):0;
 
@@ -889,7 +897,7 @@ function renderSVDetail(){
     if(!ses.length)return;
     let present=0;
     const rows=ses.map((s,i)=>{
-      const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)present++;
+      const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)present++;
       return `<tr><td>Buổi ${i+1}</td><td style="font-size:.76rem">${fmD(s.startTime)}</td><td>${here?'<span class="badge bdg">✅ Có mặt</span>':'<span class="badge bdr">❌ Vắng</span>'}</td></tr>`;
     }).join('');
     const pct=ses.length>0?Math.round(present/ses.length*100):0;
@@ -898,7 +906,7 @@ function renderSVDetail(){
   });
 
   // Groups & thesis
-  const grps=D.groups.filter(g=>(g.memberCodes||[]).includes(sv.code));
+  const grps=D.groups.filter(g=>(g.memberCodes||[]).map(c=>nCode(c)).includes(nCode(sv.code)));
   html+=`<div style="margin-top:16px"><div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📄 Nhóm & Khóa luận</div>`;
   if(grps.length){grps.forEach(g=>{const sub=D.thesis.filter(t=>t.groupId===g.id);html+=`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.82rem"><strong>${esc(g.name)}</strong> — ${esc(g.topic||'Chưa có đề tài')}<br>${sub.length?'<span class="badge bdg">✅ Đã nộp '+sub.length+' bài</span>':'<span class="badge bdr">❌ Chưa nộp</span>'}</div>`})}
   else html+='<p style="color:var(--dim);font-size:.82rem">Chưa thuộc nhóm nào</p>';
@@ -921,7 +929,7 @@ function exportStatsExcel(){
   const h=['Mã SV','Họ tên','Khóa','Môn',...D.sessions.map((s,i)=>'B'+(i+1)+' '+fmD(s.startTime).slice(0,10)),'Tổng','%'];
   const rows=D.students.map(sv=>{
     let p=0,total=0;
-    const marks=D.sessions.map(s=>{if(!(sv.courseIds||[]).includes(s.courseId))return'—';total++;const a=D.attendance[s.id]||{};const here=!!a[sv.code];if(here)p++;return here?'✓':'✗'});
+    const marks=D.sessions.map(s=>{if(!(sv.courseIds||[]).includes(s.courseId))return'—';total++;const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)p++;return here?'✓':'✗'});
     return[sv.code,sv.name,sv.batch||'',(sv.courseIds||[]).map(id=>cName(id)).join(', '),...marks,p,total>0?Math.round(p/total*100)+'%':'0%'];
   });
   const ws1=XLSX.utils.aoa_to_sheet([h,...rows]);
