@@ -423,10 +423,39 @@ function renderGroups(){
   const el=$('group-list'),emp=$('grp-emp');
   if(!list.length){el.innerHTML='';emp.style.display='';return}emp.style.display='none';
   el.innerHTML=list.map(g=>{
-    const members=(g.memberCodes||[]).map(code=>{const sv=D.students.find(s=>s.code===code);return sv?sv.name:code});
-    const leader=g.leaderCode?(D.students.find(s=>s.code===g.leaderCode)?.name||g.leaderCode):'—';
-    const submitted=D.thesis.filter(t=>t.groupId===g.id).length;
-    return `<div class="card" style="padding:14px 18px"><div style="display:flex;justify-content:space-between;align-items:start"><div style="flex:1"><strong style="font-size:.9rem">${esc(g.name)}</strong> <span style="font-size:.72rem;color:var(--dim)">${esc(cName(g.courseId))}</span><div style="font-size:.82rem;margin-top:4px">📝 ${esc(g.topic||'Chưa có đề tài')}</div>${g.gvhd?`<div style="font-size:.76rem;color:var(--dim);margin-top:3px">🎓 GVHD: <strong style="color:var(--text)">${esc(g.gvhd)}</strong>${g.gvhdEmail?' · '+esc(g.gvhdEmail):''}</div>`:''}<div style="font-size:.76rem;color:var(--dim);margin-top:3px">👑 ${esc(leader)} · ${members.length} TV: ${members.map(n=>esc(n)).join(', ')}</div><div style="margin-top:4px">${submitted?'<span class="badge bdg">✅ Đã nộp '+submitted+' bài</span>':'<span class="badge bdr">❌ Chưa nộp</span>'}</div></div><div style="display:flex;gap:3px"><button class="btn bx bo" onclick="showGroupModal('${g.id}')">✏️</button><button class="btn bx bo" onclick="delGroup('${g.id}')" style="color:var(--red)">🗑️</button></div></div></div>`;
+    const submitted=D.thesis.filter(t=>t.groupId===g.id);
+    const latestSub=submitted.sort((a,b)=>b.time-a.time)[0];
+    // Build member rows
+    const memberRows=(g.memberCodes||[]).map((code,i)=>{
+      const sv=D.students.find(s=>s.code===code);
+      const isLeader=code===g.leaderCode;
+      return `<tr${isLeader?' style="background:var(--pri-light)"':''}>
+        <td style="font-size:.76rem">${i+1}</td>
+        <td style="font-size:.78rem"><strong>${esc(code)}</strong></td>
+        <td style="font-size:.78rem">${esc(sv?.name||code)}</td>
+        <td style="text-align:center">${isLeader?'<span class="badge bdb" style="font-size:.62rem">NT</span>':''}</td>
+        <td style="font-size:.76rem;color:var(--dim)">${esc(sv?.batch||'')}</td>
+        <td style="font-size:.76rem;color:var(--dim)">${esc(sv?.email||'')}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="card" style="padding:16px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
+        <div><strong style="font-size:.95rem">${esc(g.name)}</strong> <span class="badge bdb" style="font-size:.65rem">${esc(cName(g.courseId))}</span>
+          <span style="font-size:.72rem;color:var(--dim);margin-left:6px">${(g.memberCodes||[]).length} thành viên</span></div>
+        <div style="display:flex;gap:3px"><button class="btn bx bo" onclick="showGroupModal('${g.id}')">✏️</button><button class="btn bx bo" onclick="delGroup('${g.id}')" style="color:var(--red)">🗑️</button></div>
+      </div>
+      <div style="padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:10px">
+        <div style="font-size:.84rem;font-weight:600;margin-bottom:4px">📝 ${esc(g.topic||'Chưa có đề tài')}</div>
+        ${g.gvhd?`<div style="font-size:.78rem;color:var(--dim)">🎓 <strong style="color:var(--text)">${esc(g.gvhd)}</strong>${g.gvhdEmail?' · <a href="mailto:'+esc(g.gvhdEmail)+'" style="color:var(--pri)">'+esc(g.gvhdEmail)+'</a>':''}${g.gvhdPhone?' · '+esc(g.gvhdPhone):''}</div>`:''}
+      </div>
+      <div class="tw"><table style="font-size:.8rem"><thead><tr><th style="width:30px">#</th><th>Mã SV</th><th>Họ tên</th><th style="width:50px;text-align:center">NT</th><th>Lớp</th><th>Email</th></tr></thead><tbody>${memberRows}</tbody></table></div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        ${submitted.length
+          ?`<span class="badge bdg">✅ Đã nộp ${submitted.length} bài</span><span style="font-size:.76rem;color:var(--dim)">Người nộp: ${esc(latestSub?.name||'')} · ${fmD(latestSub?.time)}</span>`
+          :'<span class="badge bdr">❌ Chưa nộp bài</span><span></span>'}
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -965,8 +994,21 @@ function exportStudents(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sinh viên');XLSX.writeFile(wb,'danh-sach-sv.xlsx');toast('📤 Đã xuất');
 }
 function exportGroups(){
-  const rows=D.groups.map(g=>({'Tên nhóm':g.name,'Đề tài':g.topic||'','Môn học':cName(g.courseId),'Trưởng nhóm':g.leaderCode||'','Thành viên':(g.memberCodes||[]).join(', '),'GVHD':g.gvhd||'','Email GVHD':g.gvhdEmail||'','SĐT GVHD':g.gvhdPhone||''}));
-  const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:12},{wch:45},{wch:16},{wch:14},{wch:45},{wch:22},{wch:25},{wch:14}];
+  // Export detailed: each member = 1 row, with NT column
+  const rows=[];
+  D.groups.forEach(g=>{
+    (g.memberCodes||[]).forEach((code,i)=>{
+      const sv=D.students.find(s=>s.code===code);
+      rows.push({
+        'Nhóm':g.name,'Đề tài':i===0?(g.topic||''):'','Mã SV':code,
+        'Họ tên':sv?.name||code,'NT':code===g.leaderCode?'X':'',
+        'Lớp':sv?.batch||'','Email':sv?.email||'','SĐT':sv?.phone||'',
+        'Môn học':i===0?cName(g.courseId):'',
+        'GVHD':i===0?(g.gvhd||''):'','Email GVHD':i===0?(g.gvhdEmail||''):'','SĐT GVHD':i===0?(g.gvhdPhone||''):''
+      });
+    });
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:10},{wch:45},{wch:14},{wch:22},{wch:5},{wch:14},{wch:28},{wch:14},{wch:16},{wch:22},{wch:25},{wch:14}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Nhóm');XLSX.writeFile(wb,'danh-sach-nhom.xlsx');toast('📤 Đã xuất');
 }
 
