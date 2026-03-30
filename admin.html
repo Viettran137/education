@@ -114,7 +114,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
     <div class="ch"><div class="ct" style="margin:0">📋 Điều khiển điểm danh</div></div>
     <div class="fg" style="margin-bottom:12px">
       <div class="fr"><label>Môn học</label><select id="att-course" onchange="updateAttClassFilter()"></select></div>
-      <div class="fr"><label>Lớp (giữ Ctrl/Cmd chọn nhiều)</label><select id="att-class" multiple style="min-height:90px"><option value="">Tất cả lớp</option></select></div>
+      <div class="fr"><label>Lớp <button class="btn bx bo" type="button" onclick="attClassToggleAll()" style="margin-left:4px;font-size:.6rem;padding:2px 6px">Chọn/bỏ tất cả</button></label><div id="att-class-list" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px;background:var(--bg)"></div></div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
       <button class="btn bg2 bs" id="att-start" onclick="startAtt()">▶️ Bắt đầu</button>
@@ -147,7 +147,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
   </div>
   <div class="fg" style="margin-bottom:14px">
     <div class="fr"><label>Lọc môn</label><select id="stat-course" onchange="updateStatClassFilter();renderStats()"><option value="">Tất cả</option></select></div>
-    <div class="fr"><label>Lọc lớp (giữ Ctrl/Cmd chọn nhiều)</label><select id="stat-class" multiple onchange="renderStats()" style="min-height:80px"><option value="">Tất cả</option></select></div>
+    <div class="fr"><label>Lọc lớp <button class="btn bx bo" type="button" onclick="statClassToggleAll()" style="margin-left:4px;font-size:.6rem;padding:2px 6px">Chọn/bỏ tất cả</button></label><div id="stat-class-list" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px;background:var(--bg)"></div></div>
   </div>
   <div id="stat-content"></div>
 </div>
@@ -257,16 +257,22 @@ function getClassesForCourse(courseId){
 
 function updateAttClassFilter(){
   const cid=$('att-course')?.value||'';
-  const sel=$('att-class');if(!sel)return;
+  const container=$('att-class-list');if(!container)return;
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
-  // Count per class
-  const classMap={};
-  svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
-  // Sort by count desc, only show classes with ≥3 students
+  const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
-  const smallCount=Object.entries(classMap).filter(([,c])=>c<3).reduce((s,[,c])=>s+c,0);
-  sel.innerHTML=classes.map(([name,cnt])=>`<option value="${esc(name)}">${esc(name)} (${cnt} SV)</option>`).join('');
-  if(smallCount)sel.innerHTML+=`<option disabled style="color:#999">── ${Object.entries(classMap).filter(([,c])=>c<3).length} lớp nhỏ (${smallCount} SV) ──</option>`;
+  if(!classes.length){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chưa có dữ liệu lớp</span>';return}
+  container.innerHTML=classes.map(([name,cnt])=>
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="att-cls-cb" value="${esc(name)}" style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
+  ).join('');
+}
+function attClassToggleAll(){
+  const cbs=document.querySelectorAll('.att-cls-cb');
+  const allChecked=Array.from(cbs).every(cb=>cb.checked);
+  cbs.forEach(cb=>cb.checked=!allChecked);
+}
+function getAttSelectedClasses(){
+  return Array.from(document.querySelectorAll('.att-cls-cb:checked')).map(cb=>cb.value);
 }
 
 // ===== FIREBASE =====
@@ -615,26 +621,33 @@ function statView(mode){statMode=mode;['course','sv','thesis'].forEach(m=>{$('st
 
 function updateStatClassFilter(){
   const cid=$('stat-course')?.value||'';
-  const sel=$('stat-class');if(!sel)return;
-  if(!cid){sel.innerHTML='<option value="">Tất cả</option>';return}
+  const container=$('stat-class-list');if(!container)return;
+  if(!cid){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chọn môn trước</span>';return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
   const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
-  sel.innerHTML=classes.map(([name,cnt])=>`<option value="${esc(name)}">${esc(name)} (${cnt})</option>`).join('');
+  if(!classes.length){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Không có lớp</span>';return}
+  container.innerHTML=classes.map(([name,cnt])=>
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="stat-cls-cb" value="${esc(name)}" onchange="renderStats()" style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
+  ).join('');
+}
+function statClassToggleAll(){
+  const cbs=document.querySelectorAll('.stat-cls-cb');
+  const allChecked=Array.from(cbs).every(cb=>cb.checked);
+  cbs.forEach(cb=>cb.checked=!allChecked);renderStats();
 }
 
 function getFilteredCourses(){
   const cid=$('stat-course')?.value||'';
   return cid?D.courses.filter(c=>c.id===cid):D.courses;
 }
-// Get selected classes from a multi-select element
-function getSelectedClasses(selId){
-  const sel=$(selId);if(!sel)return[];
-  return Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean);
+// Get selected classes from checkbox list
+function getSelectedClasses(cbClass){
+  return Array.from(document.querySelectorAll('.'+cbClass+':checked')).map(cb=>cb.value);
 }
 
 function getFilteredStudents(courseId){
-  const classes=getSelectedClasses('stat-class');
+  const classes=getSelectedClasses('stat-cls-cb');
   let svs=D.students.filter(s=>(s.courseIds||[]).includes(courseId));
   if(classes.length)svs=svs.filter(s=>classes.includes(s.batch));
   return svs.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
@@ -709,7 +722,7 @@ function drillSessionStat(sid){
 
 function renderStatSV(c){
   const courseFilter=$('stat-course')?.value||'';
-  const classes=getSelectedClasses('stat-class');
+  const classes=getSelectedClasses('stat-cls-cb');
   let list=D.students;
   if(courseFilter)list=list.filter(s=>(s.courseIds||[]).includes(courseFilter));
   if(classes.length)list=list.filter(s=>classes.includes(s.batch));
