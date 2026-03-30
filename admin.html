@@ -261,9 +261,15 @@ function updateAttClassFilter(){
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
   const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
+  // Build new keys string to compare with current
+  const newKeys=classes.map(([n,c])=>n+':'+c).join(',');
+  if(container.dataset.keys===newKeys)return; // No change, skip re-render
+  container.dataset.keys=newKeys;
+  // Save checked state
+  const prevChecked=new Set(Array.from(document.querySelectorAll('.att-cls-cb:checked')).map(cb=>cb.value));
   if(!classes.length){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chưa có dữ liệu lớp</span>';return}
   container.innerHTML=classes.map(([name,cnt])=>
-    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="att-cls-cb" value="${esc(name)}" style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="att-cls-cb" value="${esc(name)}" ${prevChecked.has(name)?'checked':''} style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
   ).join('');
 }
 function attClassToggleAll(){
@@ -297,7 +303,7 @@ const TABS=['overview','students','courses','groups','attendance','thesis','stat
 function goTab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));$('panel-'+t).classList.add('active');document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',TABS[i]===t));renderAll()}
 
 // ===== RENDER ALL =====
-function renderAll(){renderOverview();renderSv();renderCourses();renderGroups();renderAtt();renderThesis();updateSelects();updateLinks();updateAttClassFilter()}
+function renderAll(){renderOverview();renderSv();renderCourses();renderGroups();renderAtt();renderThesis();updateSelects();updateLinks()}
 
 function updateSelects(){
   const opts=D.courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
@@ -487,7 +493,7 @@ function stopAtt(){
   renderAttHist();toast('✅ Đã dừng');
 }
 
-function renderAtt(){updateSelects();if(!attSID){$('qr-panel').classList.add('hidden');$('att-start').classList.remove('hidden');$('att-stop').classList.add('hidden');$('att-status').textContent='Chưa bắt đầu';$('live-badge').className='live-badge off';$('live-badge').textContent='⚪ TẮT'}renderAttHist()}
+function renderAtt(){if(!attSID){$('qr-panel').classList.add('hidden');$('att-start').classList.remove('hidden');$('att-stop').classList.add('hidden');$('att-status').textContent='Chưa bắt đầu';$('live-badge').className='live-badge off';$('live-badge').textContent='⚪ TẮT'}renderAttHist()}
 
 function renderAttHist(){
   const fc=$('att-hc')?.value||'';let ses=[...D.sessions].sort((a,b)=>b.startTime-a.startTime);
@@ -622,13 +628,17 @@ function statView(mode){statMode=mode;['course','sv','thesis'].forEach(m=>{$('st
 function updateStatClassFilter(){
   const cid=$('stat-course')?.value||'';
   const container=$('stat-class-list');if(!container)return;
-  if(!cid){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chọn môn trước</span>';return}
+  if(!cid){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chọn môn trước</span>';container.dataset.keys='';return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
   const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
+  const newKeys=classes.map(([n,c])=>n+':'+c).join(',');
+  if(container.dataset.keys===newKeys)return;
+  container.dataset.keys=newKeys;
+  const prevChecked=new Set(Array.from(document.querySelectorAll('.stat-cls-cb:checked')).map(cb=>cb.value));
   if(!classes.length){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Không có lớp</span>';return}
   container.innerHTML=classes.map(([name,cnt])=>
-    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="stat-cls-cb" value="${esc(name)}" onchange="renderStats()" style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
+    `<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;font-size:.8rem;border-radius:6px" onmouseover="this.style.background='var(--pri-light)'" onmouseout="this.style.background=''"><input type="checkbox" class="stat-cls-cb" value="${esc(name)}" ${prevChecked.has(name)?'checked':''} onchange="renderStats()" style="width:16px;height:16px;accent-color:var(--pri)">${esc(name)} <span style="color:var(--dim);font-size:.7rem">(${cnt})</span></label>`
   ).join('');
 }
 function statClassToggleAll(){
