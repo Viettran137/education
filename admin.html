@@ -111,7 +111,11 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 <!-- ===== ATTENDANCE ===== -->
 <div id="panel-attendance" class="panel">
   <div class="card">
-    <div class="ch"><div class="ct" style="margin:0">📋 Điều khiển điểm danh</div><select id="att-course" style="min-width:180px"></select></div>
+    <div class="ch"><div class="ct" style="margin:0">📋 Điều khiển điểm danh</div></div>
+    <div class="fg" style="margin-bottom:12px">
+      <div class="fr"><label>Môn học</label><select id="att-course" onchange="updateAttClassFilter()"></select></div>
+      <div class="fr"><label>Lớp (tuỳ chọn)</label><select id="att-class"><option value="">Tất cả lớp</option></select></div>
+    </div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
       <button class="btn bg2 bs" id="att-start" onclick="startAtt()">▶️ Bắt đầu</button>
       <button class="btn bred bs hidden" id="att-stop" onclick="stopAtt()">⏹️ Dừng</button>
@@ -136,10 +140,14 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
 <!-- ===== STATS ===== -->
 <div id="panel-stats" class="panel">
   <div class="ch"><div class="ct" style="margin:0">📈 Thống kê</div><button class="btn bo bs" onclick="exportStatsExcel()">📥 Excel</button></div>
-  <div style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap">
     <button class="btn bp bs" id="stab-course" onclick="statView('course')">Theo lớp/môn</button>
     <button class="btn bo bs" id="stab-sv" onclick="statView('sv')">Theo SV</button>
     <button class="btn bo bs" id="stab-thesis" onclick="statView('thesis')">Khóa luận</button>
+  </div>
+  <div class="fg" style="margin-bottom:14px">
+    <div class="fr"><label>Lọc môn</label><select id="stat-course" onchange="updateStatClassFilter();renderStats()"><option value="">Tất cả</option></select></div>
+    <div class="fr"><label>Lọc lớp</label><select id="stat-class" onchange="renderStats()"><option value="">Tất cả lớp</option></select></div>
   </div>
   <div id="stat-content"></div>
 </div>
@@ -225,6 +233,38 @@ function toast(m){const t=document.createElement('div');t.className='toast';t.te
 function fmD(ts){if(!ts)return'';const d=new Date(ts);return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 function cName(id){const c=D.courses.find(c=>c.id===id);return c?c.name:'?'}
 
+// Convert Excel serial date (e.g. 38976) to dd/mm/yyyy
+function parseExcelDate(v){
+  if(!v)return'';
+  const s=String(v).trim();
+  // Already dd/mm/yyyy or similar string
+  if(s.includes('/'))return s;
+  // Excel serial number
+  const num=Number(s);
+  if(!isNaN(num)&&num>30000&&num<60000){
+    const d=new Date((num-25569)*86400000);
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  }
+  return s;
+}
+
+// Get unique classes (batch/lớp) for a course
+function getClassesForCourse(courseId){
+  const svs=D.students.filter(s=>(s.courseIds||[]).includes(courseId));
+  const classes=new Set(svs.map(s=>s.batch).filter(Boolean));
+  return[...classes].sort();
+}
+
+function updateAttClassFilter(){
+  const cid=$('att-course')?.value||'';
+  const classes=getClassesForCourse(cid);
+  const sel=$('att-class');if(!sel)return;
+  sel.innerHTML='<option value="">Tất cả lớp ('+D.students.filter(s=>(s.courseIds||[]).includes(cid)).length+' SV)</option>'+classes.map(c=>{
+    const cnt=D.students.filter(s=>(s.courseIds||[]).includes(cid)&&s.batch===c).length;
+    return`<option value="${esc(c)}">${esc(c)} (${cnt} SV)</option>`;
+  }).join('');
+}
+
 // ===== FIREBASE =====
 let fbDb=null,fbSt=null;
 function initFB(){
@@ -247,18 +287,20 @@ const TABS=['overview','students','courses','groups','attendance','thesis','stat
 function goTab(t){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));$('panel-'+t).classList.add('active');document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',TABS[i]===t));renderAll()}
 
 // ===== RENDER ALL =====
-function renderAll(){renderOverview();renderSv();renderCourses();renderGroups();renderAtt();renderThesis();updateSelects();updateLinks()}
+function renderAll(){renderOverview();renderSv();renderCourses();renderGroups();renderAtt();renderThesis();updateSelects();updateLinks();updateAttClassFilter()}
 
 function updateSelects(){
   const opts=D.courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  ['sv-fc','att-course','att-hc','grp-fc','g-course'].forEach(id=>{
+  ['sv-fc','att-course','att-hc','grp-fc','g-course','stat-course'].forEach(id=>{
     const el=$(id);if(!el)return;const prev=el.value;
-    if(id==='sv-fc'||id==='grp-fc')el.innerHTML='<option value="">Tất cả môn</option>'+opts;
+    if(id==='sv-fc'||id==='grp-fc'||id==='stat-course')el.innerHTML='<option value="">Tất cả</option>'+opts;
     else el.innerHTML=opts;
     if(prev)el.value=prev;
   });
-  // Multi-select for student modal
   $('sv-courses').innerHTML=D.courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  // Populate class filters after course selects are ready
+  updateAttClassFilter();
+  updateStatClassFilter();
 }
 
 function updateLinks(){
@@ -567,6 +609,25 @@ function exportThesis(){
 let statMode='course';
 function statView(mode){statMode=mode;['course','sv','thesis'].forEach(m=>{$('stab-'+m).className=m===mode?'btn bp bs':'btn bo bs'});renderStats()}
 
+function updateStatClassFilter(){
+  const cid=$('stat-course')?.value||'';
+  const sel=$('stat-class');if(!sel)return;
+  if(!cid){sel.innerHTML='<option value="">Tất cả lớp</option>';return}
+  const classes=getClassesForCourse(cid);
+  sel.innerHTML='<option value="">Tất cả lớp</option>'+classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+function getFilteredCourses(){
+  const cid=$('stat-course')?.value||'';
+  return cid?D.courses.filter(c=>c.id===cid):D.courses;
+}
+function getFilteredStudents(courseId){
+  const classFilter=$('stat-class')?.value||'';
+  let svs=D.students.filter(s=>(s.courseIds||[]).includes(courseId));
+  if(classFilter)svs=svs.filter(s=>s.batch===classFilter);
+  return svs.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+}
+
 function renderStats(){
   const c=$('stat-content');
   if(statMode==='course')renderStatCourse(c);
@@ -575,10 +636,11 @@ function renderStats(){
 }
 
 function renderStatCourse(c){
-  if(!D.courses.length){c.innerHTML='<p style="color:var(--dim)">Chưa có môn</p>';return}
-  c.innerHTML=D.courses.map(course=>{
+  const courses=getFilteredCourses();
+  if(!courses.length){c.innerHTML='<p style="color:var(--dim)">Chưa có môn</p>';return}
+  c.innerHTML=courses.map(course=>{
     const ses=D.sessions.filter(s=>s.courseId===course.id).sort((a,b)=>a.startTime-b.startTime);
-    const svs=D.students.filter(s=>(s.courseIds||[]).includes(course.id)).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const svs=getFilteredStudents(course.id);
     if(!ses.length)return `<div class="card"><div class="ct">📚 ${esc(course.name)} <span style="font-size:.72rem;color:var(--dim);font-weight:400">· ${svs.length} SV · Chưa điểm danh</span></div></div>`;
 
     const svStats=svs.map(sv=>{
@@ -634,14 +696,12 @@ function drillSessionStat(sid){
 }
 
 function renderStatSV(c){
-  // Filter by course first, then show student selector
-  c.innerHTML=`<div class="fg" style="margin-bottom:14px"><div class="fr"><label>Lọc theo lớp</label><select id="stat-sv-course" onchange="updateStatSvList()" style="max-width:250px"><option value="">Tất cả</option>${D.courses.map(co=>`<option value="${co.id}">${esc(co.name)}</option>`).join('')}</select></div><div class="fr"><label>Chọn sinh viên</label><select id="stat-sv-sel" onchange="renderSVDetail()" style="max-width:300px"><option value="">— Chọn SV —</option>${D.students.map(s=>`<option value="${s.code}">${s.name} (${s.code})</option>`).join('')}</select></div></div><div id="stat-sv-detail"></div>`;
-}
-function updateStatSvList(){
-  const cid=$('stat-sv-course')?.value||'';
-  let list=D.students;if(cid)list=list.filter(s=>(s.courseIds||[]).includes(cid));
-  $('stat-sv-sel').innerHTML='<option value="">— Chọn SV —</option>'+list.map(s=>`<option value="${s.code}">${s.name} (${s.code})</option>`).join('');
-  $('stat-sv-detail').innerHTML='';
+  const courseFilter=$('stat-course')?.value||'';
+  const classFilter=$('stat-class')?.value||'';
+  let list=D.students;
+  if(courseFilter)list=list.filter(s=>(s.courseIds||[]).includes(courseFilter));
+  if(classFilter)list=list.filter(s=>s.batch===classFilter);
+  c.innerHTML=`<div class="fr"><select id="stat-sv-sel" onchange="renderSVDetail()" style="max-width:300px"><option value="">— Chọn SV (${list.length}) —</option>${list.map(s=>`<option value="${s.code}">${s.name} (${s.code}) ${s.batch?'['+s.batch+']':''}</option>`).join('')}</select></div><div id="stat-sv-detail"></div>`;
 }
 function renderSVDetail(){
   const code=$('stat-sv-sel')?.value;const c=$('stat-sv-detail');if(!code){c.innerHTML='';return}
@@ -747,7 +807,7 @@ function doImport(){
       let nameFull=String(r['Họ tên']||r['HoTen']||r['name']||r['Sinh viên']||'').trim();
       let lastName=String(r['Họ và chữ lót']||r['Họ chữ lót']||r['lastName']||'').trim();
       let firstName=String(r['Tên']||r['firstName']||'').trim();
-      const dob=String(r['Ngày sinh']||r['DOB']||r['dob']||'').trim();
+      const dob=parseExcelDate(r['Ngày sinh']||r['DOB']||r['dob']||'');
       
       // If split name columns provided, use them
       if(lastName&&firstName){nameFull=(lastName+' '+firstName).trim()}
@@ -798,7 +858,7 @@ function doImport(){
       const lop=String(r['Lớp']||'').trim();
       const phone=String(r['Điện thoại']||r['SĐT']||'').trim();
       const email=String(r['Email']||'').trim();
-      const dob=String(r['Ngày sinh']||r['DOB']||'').trim();
+      const dob=parseExcelDate(r['Ngày sinh']||r['DOB']||'');
       const gvhd=String(r['Người hướng dẫn']||r['GVHD']||'').trim();
       const gvhdPhone=String(r['Điện thoại người hướng dẫn']||r['SĐT GVHD']||'').trim();
       const gvhdEmail=String(r['Email người hướng dẫn']||r['Email GVHD']||'').trim();
