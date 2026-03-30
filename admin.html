@@ -126,7 +126,13 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
         <select id="grp-status" onchange="renderGroups()" style="width:120px"><option value="">Tất cả</option><option value="submitted">✅ Đã nộp</option><option value="missing">❌ Chưa nộp</option></select>
       </div>
     </div>
-    <div style="margin-top:6px;font-size:.76rem;color:var(--dim)" id="grp-count"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      <div style="font-size:.76rem;color:var(--dim)" id="grp-count"></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:4px;margin:0"><input type="checkbox" id="grp-check-all" onchange="grpToggleAll()" style="width:15px;height:15px;accent-color:var(--pri)"> Chọn tất cả</label>
+        <button class="btn bred bx" id="grp-del-sel" onclick="grpDeleteSelected()" style="display:none">🗑️ Xoá</button>
+      </div>
+    </div>
   </div>
   <div id="group-list"></div><div class="empty" id="grp-emp"><div class="ei">👨‍👩‍👧</div><p>Chưa có nhóm</p></div>
 </div>
@@ -252,6 +258,9 @@ function save(){D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));sync
 const $=id=>document.getElementById(id);
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+// Normalize student code to string for comparison
+function nCode(v){return String(v||'').trim();}
+function findSv(code){const c=nCode(code);return D.students.find(s=>nCode(s.code)===c)}
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3000)}
 function fmD(ts){if(!ts)return'';const d=new Date(ts);return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 function cName(id){const c=D.courses.find(c=>c.id===id);return c?c.name:'?'}
@@ -473,6 +482,9 @@ function saveGroup(){
   save();$('grp-modal').classList.add('hidden');renderGroups();toast('✅ Đã lưu');
 }
 function delGroup(id){if(!confirm('Xoá nhóm?'))return;D.groups=D.groups.filter(g=>g.id!==id);save();renderGroups()}
+function grpToggleAll(){const all=$('grp-check-all')?.checked;document.querySelectorAll('.grp-cb').forEach(cb=>cb.checked=all);grpCheckChanged()}
+function grpCheckChanged(){const cnt=document.querySelectorAll('.grp-cb:checked').length;const btn=$('grp-del-sel');btn.style.display=cnt>0?'':'none';btn.textContent=`🗑️ Xoá ${cnt} nhóm`}
+function grpDeleteSelected(){const ids=Array.from(document.querySelectorAll('.grp-cb:checked')).map(cb=>cb.value);if(!ids.length)return;if(!confirm(`Xoá ${ids.length} nhóm đã chọn?`))return;D.groups=D.groups.filter(g=>!ids.includes(g.id));save();renderGroups();toast(`🗑️ Đã xoá ${ids.length} nhóm`)}
 function updateGvhdFilter(){
   const gvhds=new Set(D.groups.map(g=>g.gvhd).filter(Boolean));
   const sel=$('grp-gvhd');if(!sel)return;
@@ -496,7 +508,7 @@ function renderGroups(){
     const gvhd=(g.gvhd||'').toLowerCase();
     const name=(g.name||'').toLowerCase();
     const memberMatch=(g.memberCodes||[]).some(code=>{
-      const sv=D.students.find(s=>s.code===code);
+      const sv=findSv(code);
       return code.toLowerCase().includes(q)||(sv?.name||'').toLowerCase().includes(q);
     });
     return topic.includes(q)||gvhd.includes(q)||name.includes(q)||memberMatch;
@@ -511,8 +523,8 @@ function renderGroups(){
     const latestSub=submitted.sort((a,b)=>b.time-a.time)[0];
     // Build member rows
     const memberRows=(g.memberCodes||[]).map((code,i)=>{
-      const sv=D.students.find(s=>s.code===code);
-      const isLeader=code===g.leaderCode;
+      const sv=findSv(code);
+      const isLeader=nCode(code)===nCode(g.leaderCode);
       return `<tr${isLeader?' style="background:var(--pri-light)"':''}>
         <td style="font-size:.76rem">${i+1}</td>
         <td style="font-size:.78rem"><strong>${esc(code)}</strong></td>
@@ -525,8 +537,8 @@ function renderGroups(){
 
     return `<div class="card" style="padding:16px 18px">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">
-        <div><strong style="font-size:.95rem">${esc(g.name)}</strong> <span class="badge bdb" style="font-size:.65rem">${esc(cName(g.courseId))}</span>
-          <span style="font-size:.72rem;color:var(--dim);margin-left:6px">${(g.memberCodes||[]).length} thành viên</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="grp-cb" value="${g.id}" onchange="grpCheckChanged()" style="width:16px;height:16px;accent-color:var(--pri)"><div><strong style="font-size:.95rem">${esc(g.name)}</strong> <span class="badge bdb" style="font-size:.65rem">${esc(cName(g.courseId))}</span>
+          <span style="font-size:.72rem;color:var(--dim);margin-left:6px">${(g.memberCodes||[]).length} thành viên</span></div></div>
         <div style="display:flex;gap:3px"><button class="btn bx bo" onclick="showGroupModal('${g.id}')">✏️</button><button class="btn bx bo" onclick="delGroup('${g.id}')" style="color:var(--red)">🗑️</button></div>
       </div>
       <div style="padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:10px">
@@ -710,7 +722,7 @@ function saveMaAtt(){
   // Clear existing then set checked ones
   D.attendance[ses.id]={};
   document.querySelectorAll('.ma-cb:checked').forEach(cb=>{
-    const code=cb.value;const sv=D.students.find(s=>s.code===code);
+    const code=cb.value;const sv=findSv(code);
     D.attendance[ses.id][code]={code,name:sv?.name||code,time:ses.startTime,qrCode:'MANUAL'};
   });
   if(fbDb)fbDb.ref('attendance/'+ses.id).set(D.attendance[ses.id]);
@@ -853,7 +865,7 @@ function renderStatSV(c){
 }
 function renderSVDetail(){
   const code=$('stat-sv-sel')?.value;const c=$('stat-sv-detail');if(!code){c.innerHTML='';return}
-  const sv=D.students.find(s=>s.code===code);if(!sv){c.innerHTML='';return}
+  const sv=findSv(code);if(!sv){c.innerHTML='';return}
 
   // Overall stats across all courses
   let totalPresent=0,totalSessions=0;
@@ -967,7 +979,7 @@ function doImport(){
       
       const courseName=String(r['Môn học']||r['Mon']||r['course']||'').trim();
       let courseId='';if(courseName){const found=D.courses.find(c=>c.name===courseName||c.code===courseName);if(found)courseId=found.id}
-      const existing=D.students.find(s=>s.code===code);
+      const existing=findSv(code);
       if(existing){
         if(courseId&&!(existing.courseIds||[]).includes(courseId)){existing.courseIds=existing.courseIds||[];existing.courseIds.push(courseId);added++}
         if(!existing.email&&r['Email'])existing.email=String(r['Email']||'').trim();
@@ -1030,7 +1042,7 @@ function doImport(){
         currentGroup.memberCodes.push(svCode);
         
         const sp=splitName(svName);
-        const existing=D.students.find(s=>s.code===svCode);
+        const existing=findSv(svCode);
         if(!existing){
           D.students.push({id:uid(),code:svCode,name:svName,lastName:sp.lastName,firstName:sp.firstName,dob:dob,email:email,phone:phone,batch:lop,note:'',courseIds:courseId?[courseId]:[]});added_sv++;
         }else{
@@ -1082,10 +1094,10 @@ function exportGroups(){
   const rows=[];
   D.groups.forEach(g=>{
     (g.memberCodes||[]).forEach((code,i)=>{
-      const sv=D.students.find(s=>s.code===code);
+      const sv=findSv(code);
       rows.push({
         'Nhóm':g.name,'Đề tài':i===0?(g.topic||''):'','Mã SV':code,
-        'Họ tên':sv?.name||code,'NT':code===g.leaderCode?'X':'',
+        'Họ tên':sv?.name||code,'NT':nCode(code)===nCode(g.leaderCode)?'X':'',
         'Lớp':sv?.batch||'','Email':sv?.email||'','SĐT':sv?.phone||'',
         'Môn học':i===0?cName(g.courseId):'',
         'GVHD':i===0?(g.gvhd||''):'','Email GVHD':i===0?(g.gvhdEmail||''):'','SĐT GVHD':i===0?(g.gvhdPhone||''):''
