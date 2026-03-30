@@ -153,7 +153,7 @@ async function validateStudent(){
   const snap=await db.ref('educheck2/students').once('value');
   const students=snap.val()?Object.values(snap.val()):[];
   // Also check from data
-  const found=students.find(s=>s.code===studentCode);
+  const found=students.find(s=>String(s.code).trim()===studentCode);
   if(!found){err.textContent='⚠️ Mã SV không tồn tại trong hệ thống';err.classList.remove('hidden');return}
   if(found.name.toLowerCase().trim()!==studentName.toLowerCase().trim()){err.textContent='⚠️ Tên không khớp với mã SV. Kiểm tra lại.';err.classList.remove('hidden');return}
 
@@ -244,8 +244,8 @@ async function submitAttendance(sessionId,code){
   if(session.courseId){
     const svSnap=await db.ref('educheck2/students').once('value');
     const students=svSnap.val()?Object.values(svSnap.val()):[];
-    const sv=students.find(s=>s.code===studentCode);
-    if(sv&&!(sv.courseIds||[]).includes(session.courseId)){
+    const sv=students.find(s=>String(s.code).trim()===studentCode);
+    if(sv&&!(sv.courseIds||[]).map(c=>String(c)).includes(String(session.courseId))){
       showAttError('⚠️ Bạn không thuộc lớp đang điểm danh. Liên hệ giảng viên.');return}
   }
 
