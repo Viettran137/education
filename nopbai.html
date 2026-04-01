@@ -54,13 +54,11 @@ input:focus,select:focus{border-color:var(--pri)}
     <div class="card">
       <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">Bước 1: Xác minh thông tin</h3>
       <label>Mã sinh viên</label>
-      <input type="text" id="sv-code" placeholder="VD: 21110001" oninput="clearValidation()">
+      <input type="text" id="sv-code" placeholder="VD: 2321001462" oninput="clearValidation()">
       <label>Họ tên đầy đủ</label>
       <input type="text" id="sv-name" placeholder="Nguyễn Văn A" oninput="clearValidation()">
-      <label>Khóa</label>
-      <input type="text" id="sv-batch" placeholder="VD: K21">
       <div id="validate-msg" class="hidden"></div>
-      <button class="btn btn-pri" onclick="validateInfo()">Kiểm tra thông tin →</button>
+      <button class="btn btn-pri" onclick="validateInfo()">Kiểm tra & tiếp tục →</button>
     </div>
   </div>
 
@@ -100,7 +98,7 @@ input:focus,select:focus{border-color:var(--pri)}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script>
 let db=null,storage=null,selectedFile=null;
-let svData={code:'',name:'',batch:'',topic:'',courseId:''};
+let svData={code:'',name:'',topic:'',groupId:'',groupName:''};
 const DEFAULT_FB={"apiKey":"AIzaSyAAxf4sUwd6vWCohKwESQZZQKGgVgv96oE","authDomain":"education-df9a0.firebaseapp.com","databaseURL":"https://education-df9a0-default-rtdb.asia-southeast1.firebasedatabase.app","projectId":"education-df9a0","storageBucket":"education-df9a0.firebasestorage.app","messagingSenderId":"770840279264","appId":"1:770840279264:web:fba64d37c635edb3967885"};
 
 function initFB(){
@@ -127,7 +125,6 @@ function clearValidation(){document.getElementById('validate-msg').classList.add
 async function validateInfo(){
   const code=document.getElementById('sv-code').value.trim();
   const name=document.getElementById('sv-name').value.trim();
-  const batch=document.getElementById('sv-batch').value.trim();
   const msg=document.getElementById('validate-msg');
 
   if(!code||!name){msg.className='status-msg err';msg.textContent='⚠️ Nhập đầy đủ mã SV và họ tên';msg.classList.remove('hidden');return}
@@ -135,7 +132,6 @@ async function validateInfo(){
 
   msg.className='status-msg warn';msg.textContent='⏳ Đang kiểm tra...';msg.classList.remove('hidden');
 
-  // Load from educheck2 (new data structure)
   const [svSnap,grpSnap]=await Promise.all([db.ref('educheck2/students').once('value'),db.ref('educheck2/groups').once('value')]);
   const students=svSnap.val()?Object.values(svSnap.val()):[];
   const groups=grpSnap.val()?Object.values(grpSnap.val()):[];
@@ -144,13 +140,11 @@ async function validateInfo(){
   if(!found){msg.className='status-msg err';msg.textContent='❌ Mã SV không tồn tại trong hệ thống';return}
   if(found.name.toLowerCase().trim()!==name.toLowerCase().trim()){msg.className='status-msg err';msg.textContent='❌ Tên không khớp với mã SV';return}
 
-  // Find groups this student belongs to
   const myGroups=groups.filter(g=>(g.memberCodes||[]).map(c=>String(c).trim()).includes(code));
-  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Bạn chưa thuộc nhóm khóa luận nào. Liên hệ giảng viên.';return}
+  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Bạn chưa thuộc nhóm nào. Liên hệ giảng viên.';return}
 
-  // If multiple groups, let them choose
   msg.classList.add('hidden');
-  svData={code,name:found.name,batch:batch||found.batch||''};
+  svData={code,name:found.name};
 
   let groupSelect='';
   if(myGroups.length===1){
@@ -163,7 +157,6 @@ async function validateInfo(){
   document.getElementById('confirm-info').innerHTML=`
     <div><strong>Mã SV:</strong> ${svData.code}</div>
     <div><strong>Họ tên:</strong> ${svData.name}</div>
-    <div><strong>Khóa:</strong> ${svData.batch}</div>
     <div><strong>Nhóm:</strong> <span id="disp-group">${svData.groupName||''}</span></div>
     <div><strong>Đề tài:</strong> <span id="disp-topic">${svData.topic||''}</span></div>
     ${groupSelect}
@@ -234,7 +227,7 @@ async function submitThesis(){
     // Save metadata to Firebase DB
     const thesisData={
       id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-      code:svData.code,name:svData.name,batch:svData.batch,topic:svData.topic,
+      code:svData.code,name:svData.name,topic:svData.topic,
       groupId:svData.groupId||'',groupName:svData.groupName||'',
       fileName:selectedFile.name,fileUrl:url,filePath:path,
       time:Date.now(),status:'submitted'
@@ -264,7 +257,7 @@ async function submitThesis(){
 
 function resetAll(){
   goStep(1);selectedFile=null;
-  ['sv-code','sv-name','sv-batch'].forEach(id=>document.getElementById(id).value='');
+  ['sv-code','sv-name'].forEach(id=>document.getElementById(id).value='');
   const area2=document.getElementById('upload-area');area2.classList.remove('has-file');
   area2.querySelector('.icon').textContent='📎';area2.querySelector('.txt').textContent='Bấm để chọn file hoặc kéo thả vào đây';
   document.getElementById('file-name').classList.add('hidden');
