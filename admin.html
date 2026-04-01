@@ -295,11 +295,14 @@ function getClassesForCourse(courseId){
   return[...classes].sort();
 }
 
+// Filter out invalid batch values (student codes stored as batch by mistake)
+function isValidClass(b){if(!b)return false;const s=String(b).trim();if(/^\d{8,}$/.test(s))return false;return s.length>0}
+
 function updateAttClassFilter(){
   const cid=$('att-course')?.value||'';
   const container=$('att-class-list');if(!container)return;
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
-  const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
+  const classMap={};svs.forEach(s=>{if(isValidClass(s.batch)){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
   // Build new keys string to compare with current
   const newKeys=classes.map(([n,c])=>n+':'+c).join(',');
@@ -431,7 +434,7 @@ function updateSvClassFilter(){
   const prev=sel.value;
   if(!fc){sel.innerHTML='<option value="">Tất cả lớp</option>';if(prev)sel.value=prev;return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(fc));
-  const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
+  const classMap={};svs.forEach(s=>{if(isValidClass(s.batch)){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).sort((a,b)=>b[1]-a[1]);
   sel.innerHTML='<option value="">Tất cả lớp</option>'+classes.map(([n,c])=>`<option value="${esc(n)}">${esc(n)} (${c})</option>`).join('');
   if(prev)sel.value=prev;
@@ -763,7 +766,7 @@ function updateStatClassFilter(){
   const container=$('stat-class-list');if(!container)return;
   if(!cid){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chọn môn trước</span>';container.dataset.keys='';return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
-  const classMap={};svs.forEach(s=>{if(s.batch){classMap[s.batch]=(classMap[s.batch]||0)+1}});
+  const classMap={};svs.forEach(s=>{if(isValidClass(s.batch)){classMap[s.batch]=(classMap[s.batch]||0)+1}});
   const classes=Object.entries(classMap).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]);
   const newKeys=classes.map(([n,c])=>n+':'+c).join(',');
   if(container.dataset.keys===newKeys)return;
