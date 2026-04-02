@@ -1071,28 +1071,14 @@ function doImport(){
       if(currentGroup&&gvhdEmail&&!currentGroup.gvhdEmail)currentGroup.gvhdEmail=gvhdEmail;
       if(currentGroup&&gvhdPhone&&!currentGroup.gvhdPhone)currentGroup.gvhdPhone=gvhdPhone;
       
-      // Add student
-      if(svCode&&svName&&currentGroup){
-        // Set leader from explicit column, or fallback to first member if no column
+      // Add member to group only — do NOT create/update students
+      if(svCode&&currentGroup){
         if(isLeader)currentGroup.leaderCode=svCode;
-        else if(!currentGroup.memberCodes.length&&!currentGroup.leaderCode&&!isLeaderCol)currentGroup.leaderCode=svCode; // fallback: first = leader if no column
+        else if(!currentGroup.memberCodes.length&&!currentGroup.leaderCode&&!isLeaderCol)currentGroup.leaderCode=svCode;
         currentGroup.memberCodes.push(svCode);
-        
-        const sp=splitName(svName);
-        const existing=findSv(svCode);
-        if(!existing){
-          D.students.push({id:uid(),code:svCode,name:svName,lastName:sp.lastName,firstName:sp.firstName,dob:dob,email:email,phone:phone,batch:lop,note:'',courseIds:courseId?[courseId]:[]});added_sv++;
-        }else{
-          if(courseId&&!(existing.courseIds||[]).includes(courseId)){existing.courseIds.push(courseId)}
-          if(!existing.email&&email)existing.email=email;
-          if(!existing.phone&&phone)existing.phone=phone;
-          if(!existing.batch&&lop)existing.batch=lop;
-          if(!existing.dob&&dob)existing.dob=dob;
-          if(!existing.lastName){existing.lastName=sp.lastName;existing.firstName=sp.firstName}
-        }
       }
     });
-    save();$('imp-modal').classList.add('hidden');renderAll();toast(`✅ ${added_grp} nhóm + ${added_sv} SV mới`);
+    save();$('imp-modal').classList.add('hidden');renderAll();toast(`✅ ${added_grp} nhóm đã import`);
   }
 }
 
