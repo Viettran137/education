@@ -100,7 +100,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
       <div style="font-size:.76rem;color:var(--dim)" id="sv-count"></div>
       <div style="display:flex;gap:6px;align-items:center">
         <label style="font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:4px;margin:0"><input type="checkbox" id="sv-check-all" onchange="svToggleAll()" style="width:15px;height:15px;accent-color:var(--pri)"> Chọn tất cả</label>
-        <button class="btn bo bx" id="sv-edit-batch" onclick="svBulkEditBatch()" style="display:none">✏️ Sửa lớp</button>
+        <button class="btn bo bx" id="sv-edit-batch" onclick="svBulkEditClass()" style="display:none">✏️ Gán Lớp HP</button>
         <button class="btn bred bx" id="sv-del-sel" onclick="svDeleteSelected()" style="display:none">🗑️ Xoá</button>
       </div>
     </div>
@@ -269,7 +269,8 @@ function normalizeData(d){
   (d.sessions||[]).forEach(s=>{s.courseId=String(s.courseId||'')});
 }
 let D=load();
-function save(){D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB()}
+let _skipSync=false;
+function save(){D._ts=Date.now();_skipSync=true;localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false},2000)}
 const $=id=>document.getElementById(id);
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
@@ -336,7 +337,7 @@ function getAttSelectedClasses(){
 let fbDb=null,fbSt=null;
 function initFB(){
   try{firebase.initializeApp(FB_CFG);fbDb=firebase.database();fbSt=firebase.storage();
-    fbDb.ref('educheck2').on('value',snap=>{const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;Object.assign(D,r);D.pw=pw;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
+    fbDb.ref('educheck2').on('value',snap=>{if(_skipSync)return;const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;Object.assign(D,r);D.pw=pw;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
     fbDb.ref('thesis').on('value',snap=>{const r=snap.val();if(r){D.thesis=Object.values(r);localStorage.setItem(SK,JSON.stringify(D));renderThesis()}});
     fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D))}});
   }catch(e){console.error('FB error',e)}
@@ -475,7 +476,7 @@ function svCheckChanged(){
   $('sv-del-sel').style.display=checked>0?'':'none';
   $('sv-del-sel').textContent=`🗑️ Xoá ${checked}`;
   $('sv-edit-batch').style.display=checked>0?'':'none';
-  $('sv-edit-batch').textContent=`✏️ Sửa lớp (${checked})`;
+  $('sv-edit-batch').textContent=`✏️ Gán Lớp HP (${checked})`;
 }
 function svDeleteSelected(){
   const ids=Array.from(document.querySelectorAll('.sv-cb:checked')).map(cb=>cb.value);
@@ -484,14 +485,17 @@ function svDeleteSelected(){
   D.students=D.students.filter(s=>!ids.includes(s.id));
   save();renderSv();toast(`🗑️ Đã xoá ${ids.length} SV`);
 }
-function svBulkEditBatch(){
+function svBulkEditClass(){
   const ids=Array.from(document.querySelectorAll('.sv-cb:checked')).map(cb=>cb.value);
   if(!ids.length)return;
-  const newBatch=prompt(`Nhập tên lớp mới cho ${ids.length} SV đã chọn:\n\n(VD: 25DDS01, 24DKT, TH_23DMC02)`);
-  if(newBatch===null)return;
-  const val=newBatch.trim();
-  ids.forEach(id=>{const sv=D.students.find(s=>s.id===id);if(sv)sv.batch=val});
-  save();renderSv();toast(`✏️ Đã cập nhật lớp "${val}" cho ${ids.length} SV`);
+  const choice=prompt(`Gán cho ${ids.length} SV đã chọn:\n\n1) Nhập mã Lớp HP (điểm danh) — VD: 2611101063006\n2) Nhập tên Lớp SV (hành chính) — VD: TH_23DMC01\n\nNhập theo format:  HP:2611101063006  hoặc  SV:TH_23DMC01\n(Hoặc chỉ nhập giá trị = gán Lớp HP)`);
+  if(!choice)return;
+  const val=choice.trim();
+  let field='classId',value=val;
+  if(val.toUpperCase().startsWith('SV:')){field='batch';value=val.slice(3).trim()}
+  else if(val.toUpperCase().startsWith('HP:')){value=val.slice(3).trim()}
+  ids.forEach(id=>{const sv=D.students.find(s=>s.id===id);if(sv)sv[field]=value});
+  save();renderSv();toast(`✏️ Đã gán ${field==='classId'?'Lớp HP':'Lớp SV'} = "${value}" cho ${ids.length} SV`);
 }
 
 // ===== GROUPS =====
