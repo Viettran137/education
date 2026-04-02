@@ -311,7 +311,7 @@ function updateAttClassFilter(){
   const container=$('att-class-list');if(!container)return;
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
   const classMap={};let noClass=0;
-  svs.forEach(s=>{if(isValidClass(s.classId||s.batch)){classMap[s.classId||s.batch]=(classMap[s.classId||s.batch]||0)+1}else{noClass++}});
+  svs.forEach(s=>{if(isValidClass(s.classId)){classMap[s.classId]=(classMap[s.classId]||0)+1}else{noClass++}});
   const classes=Object.entries(classMap).sort((a,b)=>b[1]-a[1]);
   const newKeys=classes.map(([n,c])=>n+':'+c).join(',')+'/'+noClass;
   if(container.dataset.keys===newKeys)return;
@@ -443,7 +443,7 @@ function updateSvClassFilter(){
   const prev=sel.value;
   if(!fc){sel.innerHTML='<option value="">Tất cả lớp HP</option>';if(prev)sel.value=prev;return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(fc));
-  const classMap={};svs.forEach(s=>{if(isValidClass(s.classId||s.batch)){classMap[s.classId||s.batch]=(classMap[s.classId||s.batch]||0)+1}});
+  const classMap={};svs.forEach(s=>{if(isValidClass(s.classId)){classMap[s.classId]=(classMap[s.classId]||0)+1}});
   const classes=Object.entries(classMap).sort((a,b)=>b[1]-a[1]);
   sel.innerHTML='<option value="">Tất cả lớp HP</option>'+classes.map(([n,c])=>`<option value="${esc(n)}">${esc(n)} (${c})</option>`).join('');
   if(prev)sel.value=prev;
@@ -453,7 +453,7 @@ function renderSv(){
   let list=D.students;
   if(q)list=list.filter(s=>((s.name||'')+' '+s.code+' '+(s.email||'')).toLowerCase().includes(q));
   if(fc)list=list.filter(s=>(s.courseIds||[]).includes(fc));
-  if(lc)list=list.filter(s=>(s.classId||s.batch)===lc);
+  if(lc)list=list.filter(s=>(s.classId)===lc);
   const tb=$('sv-tb'),emp=$('sv-emp');
   $('sv-count').textContent=`${list.length}/${D.students.length} sinh viên`;
   if(!list.length){tb.innerHTML='';emp.style.display='';$('sv-del-sel').style.display='none';return}emp.style.display='none';
@@ -789,7 +789,7 @@ function updateStatClassFilter(){
   const container=$('stat-class-list');if(!container)return;
   if(!cid){container.innerHTML='<span style="font-size:.78rem;color:var(--dim)">Chọn môn trước</span>';container.dataset.keys='';return}
   const svs=D.students.filter(s=>(s.courseIds||[]).includes(cid));
-  const classMap={};svs.forEach(s=>{if(isValidClass(s.classId||s.batch)){classMap[s.classId||s.batch]=(classMap[s.classId||s.batch]||0)+1}});
+  const classMap={};svs.forEach(s=>{if(isValidClass(s.classId)){classMap[s.classId]=(classMap[s.classId]||0)+1}});
   const classes=Object.entries(classMap).sort((a,b)=>b[1]-a[1]);
   const newKeys=classes.map(([n,c])=>n+':'+c).join(',');
   if(container.dataset.keys===newKeys)return;
@@ -818,7 +818,7 @@ function getSelectedClasses(cbClass){
 function getFilteredStudents(courseId){
   const classes=getSelectedClasses('stat-cls-cb');
   let svs=D.students.filter(s=>(s.courseIds||[]).includes(courseId));
-  if(classes.length)svs=svs.filter(s=>classes.includes(s.classId||s.batch));
+  if(classes.length)svs=svs.filter(s=>classes.includes(s.classId));
   return svs.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
 }
 
@@ -894,7 +894,7 @@ function renderStatSV(c){
   const classes=getSelectedClasses('stat-cls-cb');
   let list=D.students;
   if(courseFilter)list=list.filter(s=>(s.courseIds||[]).includes(courseFilter));
-  if(classes.length)list=list.filter(s=>classes.includes(s.classId||s.batch));
+  if(classes.length)list=list.filter(s=>classes.includes(s.classId));
   c.innerHTML=`<div class="fr"><select id="stat-sv-sel" onchange="renderSVDetail()" style="max-width:300px"><option value="">— Chọn SV (${list.length}) —</option>${list.map(s=>`<option value="${s.code}">${s.name} (${s.code}) ${s.batch?'['+s.batch+']':''}</option>`).join('')}</select></div><div id="stat-sv-detail"></div>`;
 }
 function renderSVDetail(){
