@@ -100,7 +100,8 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
       <div style="font-size:.76rem;color:var(--dim)" id="sv-count"></div>
       <div style="display:flex;gap:6px;align-items:center">
         <label style="font-size:.76rem;cursor:pointer;display:flex;align-items:center;gap:4px;margin:0"><input type="checkbox" id="sv-check-all" onchange="svToggleAll()" style="width:15px;height:15px;accent-color:var(--pri)"> Chọn tất cả</label>
-        <button class="btn bred bx" id="sv-del-sel" onclick="svDeleteSelected()" style="display:none">🗑️ Xoá đã chọn</button>
+        <button class="btn bo bx" id="sv-edit-batch" onclick="svBulkEditBatch()" style="display:none">✏️ Sửa lớp</button>
+        <button class="btn bred bx" id="sv-del-sel" onclick="svDeleteSelected()" style="display:none">🗑️ Xoá</button>
       </div>
     </div>
   </div>
@@ -465,7 +466,9 @@ function svToggleAll(){
 function svCheckChanged(){
   const checked=document.querySelectorAll('.sv-cb:checked').length;
   $('sv-del-sel').style.display=checked>0?'':'none';
-  $('sv-del-sel').textContent=`🗑️ Xoá ${checked} SV`;
+  $('sv-del-sel').textContent=`🗑️ Xoá ${checked}`;
+  $('sv-edit-batch').style.display=checked>0?'':'none';
+  $('sv-edit-batch').textContent=`✏️ Sửa lớp (${checked})`;
 }
 function svDeleteSelected(){
   const ids=Array.from(document.querySelectorAll('.sv-cb:checked')).map(cb=>cb.value);
@@ -473,6 +476,15 @@ function svDeleteSelected(){
   if(!confirm(`Xoá ${ids.length} sinh viên đã chọn?`))return;
   D.students=D.students.filter(s=>!ids.includes(s.id));
   save();renderSv();toast(`🗑️ Đã xoá ${ids.length} SV`);
+}
+function svBulkEditBatch(){
+  const ids=Array.from(document.querySelectorAll('.sv-cb:checked')).map(cb=>cb.value);
+  if(!ids.length)return;
+  const newBatch=prompt(`Nhập tên lớp mới cho ${ids.length} SV đã chọn:\n\n(VD: 25DDS01, 24DKT, TH_23DMC02)`);
+  if(newBatch===null)return;
+  const val=newBatch.trim();
+  ids.forEach(id=>{const sv=D.students.find(s=>s.id===id);if(sv)sv.batch=val});
+  save();renderSv();toast(`✏️ Đã cập nhật lớp "${val}" cho ${ids.length} SV`);
 }
 
 // ===== GROUPS =====
