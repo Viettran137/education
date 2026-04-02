@@ -189,7 +189,10 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
     <div class="fr"><label>📋 Điểm danh</label><input type="text" id="link-att" readonly onclick="this.select()"></div>
     <div class="fr"><label>📄 Nộp bài</label><input type="text" id="link-nop" readonly onclick="this.select()"></div>
     <div class="fr"><label>🔍 Tra cứu</label><input type="text" id="link-tra" readonly onclick="this.select()"></div></div>
-  <div class="card"><div class="ct">💾 Backup</div><div style="display:flex;gap:8px"><button class="btn bo bs" onclick="expJSON()">📤 Xuất JSON</button><button class="btn bo bs" onclick="$('imp-f').click()">📥 Nhập</button><input type="file" id="imp-f" accept=".json" style="display:none" onchange="impJSON(event)"><button class="btn bred bs" onclick="clearAll()">🗑️ Xoá hết</button></div></div>
+  <div class="card"><div class="ct">💾 Backup & Quản lý dữ liệu</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn bo bs" onclick="expJSON()">📤 Xuất JSON</button><button class="btn bo bs" onclick="$('imp-f').click()">📥 Nhập JSON</button><input type="file" id="imp-f" accept=".json" style="display:none" onchange="impJSON(event)"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bo bs" onclick="clearStudentsOnly()" style="color:var(--orange)">🗑️ Xoá SV</button><button class="btn bo bs" onclick="clearGroupsOnly()" style="color:var(--orange)">🗑️ Xoá Nhóm</button><button class="btn bred bs" onclick="clearAll()">🗑️ Xoá tất cả</button></div>
+  </div>
 </div>
 </div><!-- /container -->
 
@@ -1134,7 +1137,9 @@ function exportGroups(){
 // ===== BACKUP =====
 function expJSON(){const b=new Blob([JSON.stringify(D,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='educheck-backup.json';a.click();toast('📤 Đã xuất')}
 function impJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!confirm('Ghi đè hết?'))return;const pw=D.pw;D=d;D.pw=pw;save();renderAll();toast('✅ Nhập xong')}catch{toast('⚠️ Lỗi')}};r.readAsText(f)}
-function clearAll(){if(!confirm('⚠️ XOÁ HẾT?'))return;if(!confirm('Chắc chắn?'))return;D=dD();save();renderAll();toast('🗑️ Đã xoá')}
+function clearAll(){if(!confirm('⚠️ XOÁ HẾT DỮ LIỆU?'))return;if(!confirm('Chắc chắn? Không thể hoàn tác!'))return;_skipSync=true;D=dD();D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));if(fbDb)fbDb.ref('educheck2').set({_ts:D._ts,courses:[],students:[],groups:[],sessions:[],attendance:{},thesis:[]});setTimeout(()=>{_skipSync=false;renderAll()},1000);toast('🗑️ Đã xoá tất cả')}
+function clearStudentsOnly(){if(!confirm('Xoá toàn bộ sinh viên? (Nhóm & đề tài giữ nguyên)'))return;_skipSync=true;D.students=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false;renderAll()},1000);toast('🗑️ Đã xoá SV')}
+function clearGroupsOnly(){if(!confirm('Xoá toàn bộ nhóm & đề tài? (SV giữ nguyên)'))return;_skipSync=true;D.groups=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false;renderAll()},1000);toast('🗑️ Đã xoá nhóm')}
 </script>
 </body>
 </html>
