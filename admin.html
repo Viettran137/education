@@ -304,7 +304,7 @@ function getClassesForCourse(courseId){
 }
 
 // Filter out invalid batch values (student codes stored as batch by mistake)
-function isValidClass(b){if(!b)return false;const s=String(b).trim();if(/^\d{8,}$/.test(s))return false;return s.length>0}
+function isValidClass(b){if(!b)return false;return String(b).trim().length>0}
 
 function updateAttClassFilter(){
   const cid=$('att-course')?.value||'';
