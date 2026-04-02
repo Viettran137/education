@@ -132,19 +132,22 @@ async function validateInfo(){
 
   msg.className='status-msg warn';msg.textContent='⏳ Đang kiểm tra...';msg.classList.remove('hidden');
 
-  const [svSnap,grpSnap]=await Promise.all([db.ref('educheck2/students').once('value'),db.ref('educheck2/groups').once('value')]);
-  const students=svSnap.val()?Object.values(svSnap.val()):[];
+  const grpSnap=await db.ref('educheck2/groups').once('value');
   const groups=grpSnap.val()?Object.values(grpSnap.val()):[];
 
-  const found=students.find(s=>String(s.code).trim()===code);
-  if(!found){msg.className='status-msg err';msg.textContent='❌ Mã SV không tồn tại trong hệ thống';return}
-  if(found.name.toLowerCase().trim()!==name.toLowerCase().trim()){msg.className='status-msg err';msg.textContent='❌ Tên không khớp với mã SV';return}
-
+  // Find groups containing this student code
   const myGroups=groups.filter(g=>(g.memberCodes||[]).map(c=>String(c).trim()).includes(code));
-  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Bạn chưa thuộc nhóm nào. Liên hệ giảng viên.';return}
+  if(!myGroups.length){msg.className='status-msg err';msg.textContent='❌ Mã SV không tồn tại trong hệ thống. Liên hệ giảng viên.';return}
+
+  // Get student name from memberDetails
+  const md=(myGroups[0].memberDetails||{})[code]||{};
+  const svName=md.name||code;
+
+  // Validate name
+  if(svName!==code&&svName.toLowerCase().trim()!==name.toLowerCase().trim()){msg.className='status-msg err';msg.textContent='❌ Tên không khớp với mã SV';return}
 
   msg.classList.add('hidden');
-  svData={code,name:found.name};
+  svData={code,name:svName};
 
   let groupSelect='';
   if(myGroups.length===1){
