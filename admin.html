@@ -560,15 +560,20 @@ function renderGroups(){
     const latestSub=submitted.sort((a,b)=>b.time-a.time)[0];
     // Build member rows
     const memberRows=(g.memberCodes||[]).map((code,i)=>{
+      // Lookup: group's own memberDetails first, then D.students
+      const md=(g.memberDetails||{})[code]||{};
       const sv=findSv(code);
+      const name=md.name||sv?.name||code;
+      const batch=md.batch||sv?.batch||'';
+      const email=md.email||sv?.email||'';
       const isLeader=nCode(code)===nCode(g.leaderCode);
       return `<tr${isLeader?' style="background:var(--pri-light)"':''}>
         <td style="font-size:.76rem">${i+1}</td>
         <td style="font-size:.78rem"><strong>${esc(code)}</strong></td>
-        <td style="font-size:.78rem">${esc(sv?.name||code)}</td>
+        <td style="font-size:.78rem">${esc(name)}</td>
         <td style="text-align:center">${isLeader?'<span class="badge bdb" style="font-size:.62rem">NT</span>':''}</td>
-        <td style="font-size:.76rem;color:var(--dim)">${esc(sv?.batch||'')}</td>
-        <td style="font-size:.76rem;color:var(--dim)">${esc(sv?.email||'')}</td>
+        <td style="font-size:.76rem;color:var(--dim)">${esc(batch)}</td>
+        <td style="font-size:.76rem;color:var(--dim)">${esc(email)}</td>
       </tr>`;
     }).join('');
 
@@ -1065,7 +1070,7 @@ function doImport(){
       
       // New group when STT has value and topic exists
       if(stt&&topic){
-        currentGroup={id:uid(),name:'Nhóm '+stt,topic,courseId,leaderCode:'',memberCodes:[],gvhd:gvhd,gvhdEmail:gvhdEmail,gvhdPhone:gvhdPhone};
+        currentGroup={id:uid(),name:'Nhóm '+stt,topic,courseId,leaderCode:'',memberCodes:[],memberDetails:{},gvhd:gvhd,gvhdEmail:gvhdEmail,gvhdPhone:gvhdPhone};
         D.groups.push(currentGroup);added_grp++;
       }
       
@@ -1074,11 +1079,14 @@ function doImport(){
       if(currentGroup&&gvhdEmail&&!currentGroup.gvhdEmail)currentGroup.gvhdEmail=gvhdEmail;
       if(currentGroup&&gvhdPhone&&!currentGroup.gvhdPhone)currentGroup.gvhdPhone=gvhdPhone;
       
-      // Add member to group only — do NOT create/update students
+      // Add member to group with details — do NOT touch D.students
       if(svCode&&currentGroup){
         if(isLeader)currentGroup.leaderCode=svCode;
         else if(!currentGroup.memberCodes.length&&!currentGroup.leaderCode&&!isLeaderCol)currentGroup.leaderCode=svCode;
         currentGroup.memberCodes.push(svCode);
+        // Store member info directly in group
+        if(!currentGroup.memberDetails)currentGroup.memberDetails={};
+        currentGroup.memberDetails[svCode]={name:svName,batch:lop,email:email,phone:phone,dob:dob};
       }
     });
     save();$('imp-modal').classList.add('hidden');renderAll();toast(`✅ ${added_grp} nhóm đã import`);
@@ -1116,15 +1124,15 @@ function exportStudents(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sinh viên');XLSX.writeFile(wb,'danh-sach-sv.xlsx');toast('📤 Đã xuất');
 }
 function exportGroups(){
-  // Export detailed: each member = 1 row, with NT column
   const rows=[];
   D.groups.forEach(g=>{
     (g.memberCodes||[]).forEach((code,i)=>{
+      const md=(g.memberDetails||{})[code]||{};
       const sv=findSv(code);
       rows.push({
         'Nhóm':g.name,'Đề tài':i===0?(g.topic||''):'','Mã SV':code,
-        'Họ tên':sv?.name||code,'NT':nCode(code)===nCode(g.leaderCode)?'X':'',
-        'Lớp':sv?.batch||'','Email':sv?.email||'','SĐT':sv?.phone||'',
+        'Họ tên':md.name||sv?.name||code,'NT':nCode(code)===nCode(g.leaderCode)?'X':'',
+        'Lớp SV':md.batch||sv?.batch||'','Email':md.email||sv?.email||'','SĐT':md.phone||sv?.phone||'',
         'Môn học':i===0?cName(g.courseId):'',
         'GVHD':i===0?(g.gvhd||''):'','Email GVHD':i===0?(g.gvhdEmail||''):'','SĐT GVHD':i===0?(g.gvhdPhone||''):''
       });
