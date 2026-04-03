@@ -80,9 +80,10 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
   <div class="sg">
     <div class="sc"><div class="v vp" id="o-sv">0</div><div class="l">Sinh viên</div></div>
     <div class="sc"><div class="v vb" id="o-course">0</div><div class="l">Môn học</div></div>
-    <div class="sc"><div class="v vg" id="o-group">0</div><div class="l">Nhóm</div></div>
-    <div class="sc"><div class="v vo" id="o-session">0</div><div class="l">Buổi ĐD</div></div>
+    <div class="sc"><div class="v vg" id="o-group">0</div><div class="l">Nhóm NCKH</div></div>
+    <div class="sc"><div class="v vo" id="o-thesis">0</div><div class="l">Bài nộp</div></div>
   </div>
+  <div class="card"><div class="ct">📚 Tổng hợp theo lớp HP</div><div id="ov-classes"></div></div>
   <div class="card"><div class="ct">📋 Hoạt động gần đây</div><div id="ov-recent"></div></div>
 </div>
 
@@ -382,7 +383,34 @@ function updateLinks(){
 // ===== OVERVIEW =====
 function renderOverview(){
   $('o-sv').textContent=D.students.length;$('o-course').textContent=D.courses.length;
-  $('o-group').textContent=D.groups.length;$('o-session').textContent=D.sessions.length;
+  $('o-group').textContent=D.groups.length;$('o-thesis').textContent=D.thesis.length;
+  
+  // Per-class HP overview
+  const classHtml=[];
+  D.courses.forEach(course=>{
+    const ses=mergeSameDay(D.sessions.filter(s=>s.courseId===course.id));
+    const allSvs=D.students.filter(s=>(s.courseIds||[]).includes(course.id));
+    const classMap={};
+    allSvs.forEach(sv=>{const cls=sv.classId;if(cls){if(!classMap[cls])classMap[cls]=[];classMap[cls].push(sv)}});
+    Object.entries(classMap).sort((a,b)=>b[1].length-a[1].length).forEach(([cls,svs])=>{
+      const svCodes=new Set(svs.map(sv=>nCode(sv.code)));
+      const relevantSes=ses.filter(s=>{const att=getMergedAtt(s);return Object.keys(att).some(c=>svCodes.has(nCode(c)))});
+      let totalPresent=0,totalPossible=relevantSes.length*svs.length;
+      relevantSes.forEach(s=>{const att=getMergedAtt(s);svs.forEach(sv=>{if(att[nCode(sv.code)])totalPresent++})});
+      const avgPct=totalPossible>0?Math.round(totalPresent/totalPossible*100):0;
+      const warnSvs=svs.filter(sv=>{if(!relevantSes.length)return false;let p=0;relevantSes.forEach(s=>{if(getMergedAtt(s)[nCode(sv.code)])p++});return Math.round(p/relevantSes.length*100)<50}).length;
+      classHtml.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div><strong style="font-size:.85rem">${esc(cls)}</strong> <span style="font-size:.72rem;color:var(--dim)">${esc(course.name)} · ${svs.length} SV · ${relevantSes.length} buổi</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-weight:700;font-size:.85rem;color:${avgPct>=80?'var(--green)':avgPct>=50?'var(--orange)':'var(--red)'}">${avgPct}%</span>
+          ${warnSvs?`<span class="badge bdr">${warnSvs} cảnh báo</span>`:'<span class="badge bdg">OK</span>'}
+        </div>
+      </div>`);
+    });
+  });
+  $('ov-classes').innerHTML=classHtml.length?classHtml.join(''):'<p style="color:var(--dim);font-size:.82rem">Chưa có dữ liệu</p>';
+
+  // Recent activity
   const items=[];
   D.sessions.slice(-3).reverse().forEach(s=>{const att=D.attendance[s.id]||{};items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.82rem;display:flex;justify-content:space-between"><span>📋 ${fmD(s.startTime)} — ${esc(cName(s.courseId))}</span><span class="badge bdg">${Object.keys(att).length} SV</span></div>`)});
   D.thesis.slice(-3).reverse().forEach(t=>items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.82rem"><span>📄 ${esc(t.name)} nộp "${esc(t.topic)}" — ${fmD(t.time)}</span></div>`));
@@ -837,6 +865,26 @@ function renderStats(){
   else renderStatThesis(c);
 }
 
+// Merge sessions of same day+course into one (combine attendance data)
+function mergeSameDay(sessions){
+  const dayMap={};
+  sessions.forEach(s=>{
+    const day=new Date(s.startTime).toISOString().slice(0,10);
+    if(!dayMap[day])dayMap[day]={...s,_ids:[s.id]};
+    else dayMap[day]._ids.push(s.id);
+  });
+  return Object.values(dayMap).sort((a,b)=>a.startTime-b.startTime);
+}
+function getMergedAtt(mergedSession){
+  // Combine attendance from all session IDs in this merged day
+  const combined={};
+  (mergedSession._ids||[mergedSession.id]).forEach(sid=>{
+    const att=D.attendance[sid]||{};
+    Object.entries(att).forEach(([code,data])=>{if(!combined[code])combined[code]=data});
+  });
+  return combined;
+}
+
 function renderStatCourse(c){
   const courses=getFilteredCourses();
   if(!courses.length){c.innerHTML='<p style="color:var(--dim)">Chưa có môn</p>';return}
@@ -844,7 +892,7 @@ function renderStatCourse(c){
   
   let html='';
   courses.forEach(course=>{
-    const ses=D.sessions.filter(s=>s.courseId===course.id).sort((a,b)=>a.startTime-b.startTime);
+    const ses=mergeSameDay(D.sessions.filter(s=>s.courseId===course.id));
     const allSvs=D.students.filter(s=>(s.courseIds||[]).includes(course.id));
     if(!ses.length){html+=`<div class="card"><div class="ct">📚 ${esc(course.name)} · ${allSvs.length} SV · Chưa điểm danh</div></div>`;return}
 
@@ -861,24 +909,36 @@ function renderStatCourse(c){
 
     // Per-class cards
     classEntries.forEach(([cls,svs])=>{
+      const svCodes=new Set(svs.map(sv=>nCode(sv.code)));
+      // Only sessions where >=1 SV in this class checked in (using merged att)
+      const relevantSes=ses.filter(s=>{
+        const att=getMergedAtt(s);
+        return Object.keys(att).some(code=>svCodes.has(nCode(code)));
+      });
+      if(!relevantSes.length){
+        html+=`<div class="card" style="opacity:.6"><div class="ct">📚 ${esc(course.name)} — Lớp HP: <strong>${esc(cls)}</strong> <span style="font-size:.72rem;color:var(--dim)">(${svs.length} SV · Chưa có buổi điểm danh)</span></div></div>`;
+        return;
+      }
+
       const svStats=svs.map(sv=>{
         let present=0;const marks=[];
-        ses.forEach(s=>{const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)present++;marks.push(here)});
-        return{code:sv.code,name:sv.name,present,total:ses.length,pct:ses.length>0?Math.round(present/ses.length*100):0,marks};
+        relevantSes.forEach(s=>{const a=getMergedAtt(s);const here=!!a[nCode(sv.code)];if(here)present++;marks.push(here)});
+        return{code:sv.code,name:sv.name,present,total:relevantSes.length,pct:relevantSes.length>0?Math.round(present/relevantSes.length*100):0,marks};
       }).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
       const avgPct=svStats.length>0?Math.round(svStats.reduce((s,v)=>s+v.pct,0)/svStats.length):0;
       const warnCount=svStats.filter(s=>s.pct<50).length;
 
       // Session summary rows
-      const sessionRows=ses.map((s,i)=>{
-        const att=D.attendance[s.id]||{};
+      const sessionRows=relevantSes.map((s,i)=>{
+        const att=getMergedAtt(s);
         const cnt=svs.filter(sv=>!!att[nCode(sv.code)]).length;
         const pct=svs.length>0?Math.round(cnt/svs.length*100):0;
-        return `<div class="drill" onclick="drillSessionStatClass('${s.id}','${esc(cls)}')"><div style="display:flex;justify-content:space-between;font-size:.82rem"><span>Buổi ${i+1} — ${fmD(s.startTime)}</span><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${svs.length} (${pct}%)</span></div></div>`;
+        const ids=(s._ids||[s.id]).join(',');
+        return `<div class="drill" onclick="drillSessionStatClass('${ids}','${esc(cls)}')"><div style="display:flex;justify-content:space-between;font-size:.82rem"><span>Buổi ${i+1} — ${fmD(s.startTime)}</span><span class="badge ${pct>=80?'bdg':pct>=50?'bdo':'bdr'}">${cnt}/${svs.length} (${pct}%)</span></div></div>`;
       }).join('');
 
       // Matrix columns
-      const dateCols=ses.map((s,i)=>{const d=new Date(s.startTime);return`<th style="font-size:.6rem;writing-mode:vertical-lr;text-align:center;padding:4px 2px;min-width:28px" title="${fmD(s.startTime)}">B${i+1}<br>${d.getDate()}/${d.getMonth()+1}</th>`}).join('');
+      const dateCols=relevantSes.map((s,i)=>{const d=new Date(s.startTime);return`<th style="font-size:.6rem;writing-mode:vertical-lr;text-align:center;padding:4px 2px;min-width:28px" title="${fmD(s.startTime)}">B${i+1}<br>${d.getDate()}/${d.getMonth()+1}</th>`}).join('');
       const matrixRows=svStats.map(sv=>{
         const cells=sv.marks.map(here=>`<td style="text-align:center;padding:3px;font-size:.75rem">${here?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}</td>`).join('');
         const evalBadge=sv.pct>=80?'<span class="badge bdg">Tốt</span>':sv.pct>=50?'<span class="badge bdo">TB</span>':'<span class="badge bdr">⚠️</span>';
@@ -889,13 +949,13 @@ function renderStatCourse(c){
         <div class="ct">📚 ${esc(course.name)} — Lớp HP: <strong>${esc(cls)}</strong></div>
         <div class="sg" style="margin-bottom:12px">
           <div class="sc"><div class="v vb">${svs.length}</div><div class="l">Sinh viên</div></div>
-          <div class="sc"><div class="v vp">${ses.length}</div><div class="l">Buổi học</div></div>
+          <div class="sc"><div class="v vp">${relevantSes.length}</div><div class="l">Buổi học</div></div>
           <div class="sc"><div class="v" style="color:${avgPct>=80?'var(--green)':avgPct>=50?'var(--orange)':'var(--red)'}">${avgPct}%</div><div class="l">TB chuyên cần</div></div>
           <div class="sc"><div class="v vr">${warnCount}</div><div class="l">SV cảnh báo</div></div>
         </div>
-        <details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--pri);padding:8px 0">📅 Chi tiết từng buổi (${ses.length} buổi)</summary>${sessionRows}</details>
-        <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">📊 Bảng chuyên cần — ${svs.length} SV × ${ses.length} buổi</div>
-        <p style="font-size:.72rem;color:var(--dim);margin-bottom:8px">✓ = có mặt · ✗ = vắng</p>
+        <details style="margin-bottom:12px"><summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--pri);padding:8px 0">📅 Chi tiết từng buổi (${relevantSes.length} buổi)</summary>${sessionRows}</details>
+        <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">📊 Bảng chuyên cần — ${svs.length} SV × ${relevantSes.length} buổi</div>
+        <p style="font-size:.72rem;color:var(--dim);margin-bottom:8px">✓ = có mặt · ✗ = vắng · Chỉ hiện buổi có SV lớp này điểm danh</p>
         <div class="tw"><table style="font-size:.76rem"><thead><tr><th>Mã SV</th><th>Họ tên</th>${dateCols}<th style="min-width:45px">%</th><th>ĐG</th></tr></thead><tbody>${matrixRows}</tbody></table></div>
       </div>`;
     });
@@ -908,9 +968,11 @@ function renderStatCourse(c){
   c.innerHTML=html||'<p style="color:var(--dim)">Không có dữ liệu</p>';
 }
 
-function drillSessionStatClass(sid,cls){
-  const s=D.sessions.find(s=>s.id===sid);if(!s)return;
-  const att=D.attendance[sid]||{};
+function drillSessionStatClass(sids,cls){
+  const idArr=sids.split(',');
+  const s=D.sessions.find(s=>s.id===idArr[0]);if(!s)return;
+  // Merge attendance from all session IDs (same day)
+  const att={};idArr.forEach(sid=>{const a=D.attendance[sid]||{};Object.entries(a).forEach(([code,data])=>{if(!att[code])att[code]=data})});
   const svs=D.students.filter(sv=>(sv.courseIds||[]).includes(s.courseId)&&sv.classId===cls);
   const c=$('stat-content');
   let html=`<button class="btn bo bs" onclick="renderStats()" style="margin-bottom:12px">← Quay lại</button><div class="card"><div class="ct">📅 Buổi ${fmD(s.startTime)} — ${esc(cName(s.courseId))} — Lớp ${esc(cls)}</div><div class="tw"><table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Trạng thái</th><th>Giờ</th></tr></thead><tbody>`;
@@ -930,15 +992,20 @@ function renderSVDetail(){
   const code=$('stat-sv-sel')?.value;const c=$('stat-sv-detail');if(!code){c.innerHTML='';return}
   const sv=findSv(code);if(!sv){c.innerHTML='';return}
 
-  // Overall stats across all courses
+  // Overall stats — only count sessions relevant to this SV's class
   let totalPresent=0,totalSessions=0;
   (sv.courseIds||[]).forEach(cid=>{
-    const ses=D.sessions.filter(s=>s.courseId===cid);
-    ses.forEach(s=>{totalSessions++;const a=D.attendance[s.id]||{};if(a[nCode(sv.code)])totalPresent++});
+    const ses=mergeSameDay(D.sessions.filter(s=>s.courseId===cid));
+    const svCodes=new Set([nCode(sv.code)]);
+    // Only sessions where SV's class had attendance
+    const clsSvs=D.students.filter(s=>(s.courseIds||[]).includes(cid)&&s.classId===sv.classId);
+    const clsCodes=new Set(clsSvs.map(s=>nCode(s.code)));
+    const relevantSes=ses.filter(s=>{const att=getMergedAtt(s);return Object.keys(att).some(c=>clsCodes.has(nCode(c)))});
+    relevantSes.forEach(s=>{totalSessions++;const a=getMergedAtt(s);if(a[nCode(sv.code)])totalPresent++});
   });
   const overallPct=totalSessions>0?Math.round(totalPresent/totalSessions*100):0;
 
-  let html=`<div class="card"><div class="ct">👤 ${esc(sv.name)} — ${esc(sv.code)}</div>
+  let html=`<div class="card"><div class="ct">👤 ${esc(sv.name)} — ${esc(sv.code)} ${sv.classId?'· Lớp HP: '+esc(sv.classId):''}</div>
     <div class="sg" style="margin-bottom:14px">
       <div class="sc"><div class="v" style="color:${overallPct>=80?'var(--green)':overallPct>=50?'var(--orange)':'var(--red)'}">${overallPct}%</div><div class="l">Tổng chuyên cần</div></div>
       <div class="sc"><div class="v vg">${totalPresent}</div><div class="l">Buổi có mặt</div></div>
@@ -946,16 +1013,20 @@ function renderSVDetail(){
       <div class="sc"><div class="v vb">${totalSessions}</div><div class="l">Tổng buổi</div></div>
     </div>`;
 
-  // Per course breakdown
+  // Per course breakdown with merged sessions
   (sv.courseIds||[]).forEach(cid=>{
-    const ses=D.sessions.filter(s=>s.courseId===cid).sort((a,b)=>a.startTime-b.startTime);
+    const ses=mergeSameDay(D.sessions.filter(s=>s.courseId===cid));
     if(!ses.length)return;
+    const clsSvs=D.students.filter(s=>(s.courseIds||[]).includes(cid)&&s.classId===sv.classId);
+    const clsCodes=new Set(clsSvs.map(s=>nCode(s.code)));
+    const relevantSes=ses.filter(s=>{const att=getMergedAtt(s);return Object.keys(att).some(c=>clsCodes.has(nCode(c)))});
+    if(!relevantSes.length)return;
     let present=0;
-    const rows=ses.map((s,i)=>{
-      const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)present++;
+    const rows=relevantSes.map((s,i)=>{
+      const a=getMergedAtt(s);const here=!!a[nCode(sv.code)];if(here)present++;
       return `<tr><td>Buổi ${i+1}</td><td style="font-size:.76rem">${fmD(s.startTime)}</td><td>${here?'<span class="badge bdg">✅ Có mặt</span>':'<span class="badge bdr">❌ Vắng</span>'}</td></tr>`;
     }).join('');
-    const pct=ses.length>0?Math.round(present/ses.length*100):0;
+    const pct=relevantSes.length>0?Math.round(present/relevantSes.length*100):0;
     html+=`<div style="margin-top:12px"><div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📚 ${esc(cName(cid))} — <span style="color:${pct>=80?'var(--green)':pct>=50?'var(--orange)':'var(--red)'}">${present}/${ses.length} (${pct}%)</span></div>
       <div class="tw"><table><thead><tr><th>Buổi</th><th>Thời gian</th><th>Trạng thái</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   });
@@ -980,19 +1051,34 @@ function renderStatThesis(c){
 }
 
 function exportStatsExcel(){
-  // Sheet 1: Attendance matrix
-  const h=['Mã SV','Họ tên','Lớp HP','Lớp SV','Môn',...D.sessions.map((s,i)=>'B'+(i+1)+' '+fmD(s.startTime).slice(0,10)),'Tổng','%'];
-  const rows=D.students.map(sv=>{
-    let p=0,total=0;
-    const marks=D.sessions.map(s=>{if(!(sv.courseIds||[]).includes(s.courseId))return'—';total++;const a=D.attendance[s.id]||{};const here=!!a[nCode(sv.code)];if(here)p++;return here?'✓':'✗'});
-    return[sv.code,sv.name,sv.classId||'',sv.batch||'',(sv.courseIds||[]).map(id=>cName(id)).join(', '),...marks,p,total>0?Math.round(p/total*100)+'%':'0%'];
+  const wb=XLSX.utils.book_new();
+  // Sheet per class HP
+  D.courses.forEach(course=>{
+    const ses=mergeSameDay(D.sessions.filter(s=>s.courseId===course.id));
+    const allSvs=D.students.filter(s=>(s.courseIds||[]).includes(course.id));
+    const classMap={};
+    allSvs.forEach(sv=>{const cls=sv.classId;if(cls){if(!classMap[cls])classMap[cls]=[];classMap[cls].push(sv)}});
+    Object.entries(classMap).forEach(([cls,svs])=>{
+      const svCodes=new Set(svs.map(sv=>nCode(sv.code)));
+      const relevantSes=ses.filter(s=>{const att=getMergedAtt(s);return Object.keys(att).some(c=>svCodes.has(nCode(c)))});
+      if(!relevantSes.length)return;
+      const h=['Mã SV','Họ tên',...relevantSes.map((s,i)=>'B'+(i+1)+' '+fmD(s.startTime).slice(0,10)),'Có mặt','Tổng buổi','%','ĐG'];
+      const rows=svs.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(sv=>{
+        let p=0;
+        const marks=relevantSes.map(s=>{const a=getMergedAtt(s);const here=!!a[nCode(sv.code)];if(here)p++;return here?'✓':'✗'});
+        const pct=relevantSes.length>0?Math.round(p/relevantSes.length*100):0;
+        return[sv.code,sv.name,...marks,p,relevantSes.length,pct+'%',pct>=80?'Tốt':pct>=50?'TB':'Cảnh báo'];
+      });
+      const sheetName=(cls.length>28?cls.slice(0,28)+'..':cls);
+      const ws=XLSX.utils.aoa_to_sheet([h,...rows]);
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+    });
   });
-  const ws1=XLSX.utils.aoa_to_sheet([h,...rows]);
-  // Sheet 2: Groups & thesis
+  // Sheet nhóm
   const h2=['Nhóm','Đề tài','Môn','Trưởng nhóm','Thành viên','Đã nộp','Người nộp','Thời gian'];
   const rows2=D.groups.map(g=>{const sub=D.thesis.filter(t=>t.groupId===g.id);const latest=sub.sort((a,b)=>b.time-a.time)[0];return[g.name,g.topic||'',cName(g.courseId),g.leaderCode||'',(g.memberCodes||[]).join(', '),latest?'Đã nộp':'Chưa',latest?latest.name:'',latest?fmD(latest.time):'']});
   const ws2=XLSX.utils.aoa_to_sheet([h2,...rows2]);
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws1,'Điểm danh');XLSX.utils.book_append_sheet(wb,ws2,'Nhóm & KL');
+  XLSX.utils.book_append_sheet(wb,ws2,'Nhóm & KL');
   XLSX.writeFile(wb,'educheck-thongke.xlsx');toast('📥 Đã xuất');
 }
 
