@@ -194,6 +194,11 @@ td{padding:9px 10px;border-bottom:1px solid var(--border)}tr:hover td{background
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn bo bs" onclick="expJSON()">📤 Xuất JSON</button><button class="btn bo bs" onclick="$('imp-f').click()">📥 Nhập JSON</button><input type="file" id="imp-f" accept=".json" style="display:none" onchange="impJSON(event)"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bo bs" onclick="clearStudentsOnly()" style="color:var(--orange)">🗑️ Xoá SV</button><button class="btn bo bs" onclick="clearGroupsOnly()" style="color:var(--orange)">🗑️ Xoá Nhóm</button><button class="btn bred bs" onclick="clearAll()">🗑️ Xoá tất cả</button></div>
   </div>
+  <div class="card"><div class="ct">🔧 Khôi phục dữ liệu</div>
+    <p style="font-size:.78rem;color:var(--dim);margin-bottom:10px">Kiểm tra và khôi phục dữ liệu từ Firebase nếu bị mất do lỗi đồng bộ.</p>
+    <button class="btn bo bs" onclick="checkFirebaseData()">🔍 Kiểm tra Firebase</button>
+    <div id="recovery-result" style="margin-top:10px;font-size:.8rem"></div>
+  </div>
 </div>
 </div><!-- /container -->
 
@@ -341,12 +346,12 @@ function getAttSelectedClasses(){
 let fbDb=null,fbSt=null;
 function initFB(){
   try{firebase.initializeApp(FB_CFG);fbDb=firebase.database();fbSt=firebase.storage();
-    fbDb.ref('educheck2').on('value',snap=>{if(_skipSync)return;const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;Object.assign(D,r);D.pw=pw;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
+    fbDb.ref('educheck2').on('value',snap=>{if(_skipSync)return;const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;const att=D.attendance;const thesis=D.thesis;Object.assign(D,r);D.pw=pw;D.attendance=att;D.thesis=thesis;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
     fbDb.ref('thesis').on('value',snap=>{const r=snap.val();if(r){D.thesis=Object.values(r);localStorage.setItem(SK,JSON.stringify(D));renderThesis()}});
-    fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D))}});
+    fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D));renderOverview();renderStats()}});
   }catch(e){console.error('FB error',e)}
 }
-function syncFB(){if(!fbDb)return;const d={...D};delete d.pw;fbDb.ref('educheck2').set(d).catch(e=>console.error(e))}
+function syncFB(){if(!fbDb)return;const d={...D};delete d.pw;delete d.attendance;delete d.thesis;fbDb.ref('educheck2').set(d).catch(e=>console.error(e))}
 
 // ===== AUTH =====
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(b=>b.toString(16).padStart(2,'0')).join('')}
@@ -1251,10 +1256,98 @@ function exportGroups(){
 
 // ===== BACKUP =====
 function expJSON(){const b=new Blob([JSON.stringify(D,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='educheck-backup.json';a.click();toast('📤 Đã xuất')}
+
+// ===== RECOVERY TOOL =====
+async function checkFirebaseData(){
+  if(!fbDb){$('recovery-result').innerHTML='<span style="color:var(--red)">❌ Chưa kết nối Firebase</span>';return}
+  $('recovery-result').innerHTML='<span style="color:var(--orange)">⏳ Đang kiểm tra...</span>';
+  try{
+    const [eduSnap,attSnap,thesisSnap]=await Promise.all([
+      fbDb.ref('educheck2').once('value'),
+      fbDb.ref('attendance').once('value'),
+      fbDb.ref('thesis').once('value')
+    ]);
+    const edu=eduSnap.val()||{};
+    const att=attSnap.val()||{};
+    const thesis=thesisSnap.val()||{};
+    
+    const fbStudents=(edu.students||[]).length||(Array.isArray(edu.students)?0:Object.keys(edu.students||{}).length);
+    const fbSessions=(edu.sessions||[]).length||(Array.isArray(edu.sessions)?0:Object.keys(edu.sessions||{}).length);
+    const fbGroups=(edu.groups||[]).length||(Array.isArray(edu.groups)?0:Object.keys(edu.groups||{}).length);
+    const fbAttSessions=Object.keys(att).length;
+    const fbAttTotal=Object.values(att).reduce((s,a)=>s+Object.keys(a||{}).length,0);
+    const fbThesis=Object.keys(thesis).length;
+    
+    // Compare with local
+    const localAttSessions=Object.keys(D.attendance||{}).length;
+    const localAttTotal=Object.values(D.attendance||{}).reduce((s,a)=>s+Object.keys(a||{}).length,0);
+    
+    let html=`<div style="background:var(--bg);padding:12px;border-radius:10px;margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:8px">📊 So sánh Local vs Firebase</div>
+      <table style="font-size:.76rem;width:100%"><thead><tr><th>Dữ liệu</th><th>Local</th><th>Firebase</th><th>Trạng thái</th></tr></thead><tbody>
+      <tr><td>Sinh viên</td><td>${D.students.length}</td><td>${fbStudents}</td><td>${D.students.length>=fbStudents?'✅':'⚠️'}</td></tr>
+      <tr><td>Môn học</td><td>${D.courses.length}</td><td>${(edu.courses||[]).length}</td><td>✅</td></tr>
+      <tr><td>Nhóm</td><td>${D.groups.length}</td><td>${fbGroups}</td><td>${D.groups.length>=fbGroups?'✅':'⚠️'}</td></tr>
+      <tr><td>Sessions</td><td>${D.sessions.length}</td><td>${fbSessions}</td><td>${D.sessions.length>=fbSessions?'✅':'⚠️'}</td></tr>
+      <tr><td>Attendance (sessions)</td><td>${localAttSessions}</td><td>${fbAttSessions}</td><td>${localAttSessions>=fbAttSessions?'✅':'⚠️ Có thể khôi phục'}</td></tr>
+      <tr><td>Attendance (records)</td><td>${localAttTotal}</td><td>${fbAttTotal}</td><td>${localAttTotal>=fbAttTotal?'✅':'⚠️ Có thể khôi phục'}</td></tr>
+      <tr><td>Thesis</td><td>${D.thesis.length}</td><td>${fbThesis}</td><td>${D.thesis.length>=fbThesis?'✅':'⚠️'}</td></tr>
+      </tbody></table>
+    </div>`;
+    
+    // Recovery options
+    const canRecover=fbAttTotal>localAttTotal||fbThesis>D.thesis.length||fbStudents>D.students.length||fbGroups>D.groups.length;
+    if(canRecover){
+      html+=`<div style="background:var(--orange-lt);padding:12px;border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700;color:var(--orange);margin-bottom:6px">⚠️ Firebase có nhiều dữ liệu hơn local</div>
+        <p style="font-size:.76rem;color:var(--dim);margin-bottom:8px">Có thể khôi phục data từ Firebase. Chọn phần cần khôi phục:</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${fbAttTotal>localAttTotal?'<button class="btn bo bs" onclick="recoverAttendance()">🔄 Khôi phục Attendance</button>':''}
+          ${fbStudents>D.students.length?'<button class="btn bo bs" onclick="recoverStudents()">🔄 Khôi phục SV</button>':''}
+          ${fbGroups>D.groups.length?'<button class="btn bo bs" onclick="recoverGroups()">🔄 Khôi phục Nhóm</button>':''}
+          ${fbSessions>D.sessions.length?'<button class="btn bo bs" onclick="recoverSessions()">🔄 Khôi phục Sessions</button>':''}
+          <button class="btn bp bs" onclick="recoverAll()">🔄 Khôi phục tất cả</button>
+        </div>
+      </div>`;
+    } else {
+      html+=`<div style="background:var(--green-lt);padding:10px;border-radius:10px"><span style="color:var(--green);font-weight:600">✅ Dữ liệu local và Firebase đồng bộ</span></div>`;
+    }
+    $('recovery-result').innerHTML=html;
+  }catch(e){$('recovery-result').innerHTML=`<span style="color:var(--red)">❌ Lỗi: ${e.message}</span>`}
+}
+
+async function recoverAttendance(){
+  const snap=await fbDb.ref('attendance').once('value');
+  const att=snap.val();
+  if(att){D.attendance=att;localStorage.setItem(SK,JSON.stringify(D));renderAll();toast('✅ Đã khôi phục attendance');checkFirebaseData()}
+  else toast('⚠️ Không có data attendance trên Firebase');
+}
+async function recoverStudents(){
+  const snap=await fbDb.ref('educheck2/students').once('value');
+  const sv=snap.val();
+  if(sv){D.students=Array.isArray(sv)?sv:Object.values(sv);normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll();toast('✅ Đã khôi phục SV');checkFirebaseData()}
+  else toast('⚠️ Không có data SV trên Firebase');
+}
+async function recoverGroups(){
+  const snap=await fbDb.ref('educheck2/groups').once('value');
+  const grp=snap.val();
+  if(grp){D.groups=Array.isArray(grp)?grp:Object.values(grp);normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll();toast('✅ Đã khôi phục nhóm');checkFirebaseData()}
+  else toast('⚠️ Không có data nhóm trên Firebase');
+}
+async function recoverSessions(){
+  const snap=await fbDb.ref('educheck2/sessions').once('value');
+  const ses=snap.val();
+  if(ses){D.sessions=Array.isArray(ses)?ses:Object.values(ses);normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll();toast('✅ Đã khôi phục sessions');checkFirebaseData()}
+  else toast('⚠️ Không có data sessions trên Firebase');
+}
+async function recoverAll(){
+  await Promise.all([recoverAttendance(),recoverStudents(),recoverGroups(),recoverSessions()]);
+  save();toast('✅ Đã khôi phục tất cả');checkFirebaseData();
+}
 function impJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!confirm('Ghi đè hết?'))return;const pw=D.pw;D=d;D.pw=pw;save();renderAll();toast('✅ Nhập xong')}catch{toast('⚠️ Lỗi')}};r.readAsText(f)}
-function clearAll(){if(!confirm('⚠️ XOÁ HẾT DỮ LIỆU?'))return;if(!confirm('Chắc chắn? Không thể hoàn tác!'))return;_skipSync=true;D=dD();D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));if(fbDb)fbDb.ref('educheck2').set({_ts:D._ts,courses:[],students:[],groups:[],sessions:[],attendance:{},thesis:[]});setTimeout(()=>{_skipSync=false;renderAll()},1000);toast('🗑️ Đã xoá tất cả')}
-function clearStudentsOnly(){if(!confirm('Xoá toàn bộ sinh viên? (Nhóm & đề tài giữ nguyên)'))return;_skipSync=true;D.students=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));if(fbDb)fbDb.ref('educheck2/students').remove();syncFB();setTimeout(()=>{_skipSync=false;renderAll();toast('🗑️ Đã xoá SV — import lại')},3000)}
-function clearGroupsOnly(){if(!confirm('Xoá toàn bộ nhóm & đề tài? (SV giữ nguyên)'))return;_skipSync=true;D.groups=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));if(fbDb)fbDb.ref('educheck2/groups').remove();syncFB();setTimeout(()=>{_skipSync=false;renderAll();toast('🗑️ Đã xoá nhóm — import lại NCKH')},3000)}
+function clearAll(){if(!confirm('⚠️ XOÁ HẾT DỮ LIỆU?'))return;if(!confirm('Chắc chắn? Không thể hoàn tác!'))return;_skipSync=true;D=dD();D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB();if(fbDb){fbDb.ref('attendance').remove();fbDb.ref('thesis').remove()}setTimeout(()=>{_skipSync=false;renderAll();toast('🗑️ Đã xoá tất cả')},2000)}
+function clearStudentsOnly(){if(!confirm('Xoá toàn bộ sinh viên? (Nhóm, đề tài, điểm danh giữ nguyên)'))return;_skipSync=true;D.students=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false;renderAll();toast('🗑️ Đã xoá SV')},2000)}
+function clearGroupsOnly(){if(!confirm('Xoá toàn bộ nhóm & đề tài? (SV, điểm danh giữ nguyên)'))return;_skipSync=true;D.groups=[];D._ts=Date.now();localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false;renderAll();toast('🗑️ Đã xoá nhóm')},2000)}
 </script>
 </body>
 </html>
