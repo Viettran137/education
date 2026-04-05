@@ -279,7 +279,8 @@ function normalizeData(d){
 }
 let D=load();
 let _skipSync=false;
-function save(){D._ts=Date.now();_skipSync=true;localStorage.setItem(SK,JSON.stringify(D));syncFB();setTimeout(()=>{_skipSync=false},2000)}
+let _initialLoad=true; // Prevent syncFB until Firebase data is loaded
+function save(){D._ts=Date.now();_skipSync=true;localStorage.setItem(SK,JSON.stringify(D));if(!_initialLoad)syncFB();setTimeout(()=>{_skipSync=false},2000)}
 const $=id=>document.getElementById(id);
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
@@ -346,16 +347,16 @@ function getAttSelectedClasses(){
 let fbDb=null,fbSt=null;
 function initFB(){
   try{firebase.initializeApp(FB_CFG);fbDb=firebase.database();fbSt=firebase.storage();
-    fbDb.ref('educheck2').on('value',snap=>{if(_skipSync)return;const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;const att=D.attendance;const thesis=D.thesis;Object.assign(D,r);D.pw=pw;D.attendance=att;D.thesis=thesis;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}});
+    fbDb.ref('educheck2').on('value',snap=>{if(_skipSync)return;const r=snap.val();if(!r||!r._ts)return;if(r._ts>(D._ts||0)){const pw=D.pw;const att=D.attendance;const thesis=D.thesis;Object.assign(D,r);D.pw=pw;D.attendance=att;D.thesis=thesis;normalizeData(D);localStorage.setItem(SK,JSON.stringify(D));renderAll()}_initialLoad=false});
     fbDb.ref('thesis').on('value',snap=>{const r=snap.val();if(r){D.thesis=Object.values(r);localStorage.setItem(SK,JSON.stringify(D));renderThesis()}});
-    fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D));renderOverview();renderStats()}});
+    fbDb.ref('attendance').on('value',snap=>{const r=snap.val();if(r){D.attendance=r;localStorage.setItem(SK,JSON.stringify(D));renderOverview();renderStats()}_initialLoad=false});
   }catch(e){console.error('FB error',e)}
 }
 function syncFB(){if(!fbDb)return;const d={...D};delete d.pw;delete d.attendance;delete d.thesis;fbDb.ref('educheck2').set(d).catch(e=>console.error(e))}
 
 // ===== AUTH =====
 async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(b=>b.toString(16).padStart(2,'0')).join('')}
-async function doLogin(){if(await sha($('login-pw').value)===D.pw){$('login-ov').classList.add('hidden');initFB();renderAll()}else $('lerr').textContent='Sai mật khẩu!'}
+async function doLogin(){if(await sha($('login-pw').value)===D.pw){$('login-ov').classList.add('hidden');localStorage.removeItem(SK);D=dD();D.pw=PH;_initialLoad=true;initFB();renderAll()}else $('lerr').textContent='Sai mật khẩu!'}
 function doLogout(){$('login-ov').classList.remove('hidden')}
 async function changePw(){const p=$('new-pw').value,c=$('cf-pw').value;if(!p||p.length<4){toast('⚠️ ≥4 ký tự');return}if(p!==c){toast('⚠️ Không khớp');return}D.pw=await sha(p);save();toast('✅ Đã đổi')}
 
